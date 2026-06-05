@@ -1,0 +1,16 @@
+# Upstream benchmark repo — clone it yourself (see RUNBOOK §1):
+#   git clone https://github.com/SemiAnalysisAI/InferenceX
+InferenceX/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+
+# Local creds / keys — never commit
+*.pem
+*_creds.json
+credentials.json
+
+# OS
+.DS_Store

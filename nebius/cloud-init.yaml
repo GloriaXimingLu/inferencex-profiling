@@ -1,0 +1,15 @@
+#cloud-config
+# Minimal, robust: just inject the dedicated InferenceX SSH key for the
+# default `ubuntu` user. Docker + nvidia-container-toolkit are installed over
+# SSH afterwards (better error visibility than cloud-init runcmd).
+users:
+  - name: ubuntu
+    sudo: ALL=(ALL) NOPASSWD:ALL
+    groups: [sudo]
+    shell: /bin/bash
+    lock_passwd: true
+    ssh_authorized_keys:
+      # REPLACE the line below with YOUR public key (see RUNBOOK §3):
+      #   ssh-keygen -t ed25519 -f ~/.ssh/nebius_inferencex -N ""
+      #   cat ~/.ssh/nebius_inferencex.pub
+      - ssh-ed25519 AAAA_REPLACE_WITH_YOUR_PUBLIC_KEY_SEE_RUNBOOK_STEP_3

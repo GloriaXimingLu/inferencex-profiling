@@ -1,0 +1,17 @@
+[05:16:13] PULL vllm/vllm-openai:v0.22.0
+[05:18:58] DOWNLOAD openai/gpt-oss-120b
+[05:32:33] DOWNLOAD took 815s
+[05:32:33] CELL gptoss_tp1_c4_1k1k : tp=1 conc=4 isl=1024 osl=1024
+[05:37:43] CELL gptoss_tp1_c4_1k1k DONE: startup=221s bench=89s status=ok
+[05:37:43] CELL gptoss_tp1_c64_1k1k : tp=1 conc=64 isl=1024 osl=1024
+[05:45:29] CELL gptoss_tp1_c64_1k1k DONE: startup=191s bench=275s status=ok
+[05:45:29] CELL gptoss_tp1_c4_8k1k : tp=1 conc=4 isl=8192 osl=1024
+[05:49:36] CELL gptoss_tp1_c4_8k1k DONE: startup=142s bench=105s status=ok
+[05:49:36] CELL gptoss_tp1_c64_8k1k : tp=1 conc=64 isl=8192 osl=1024
+[06:00:31] CELL gptoss_tp1_c64_8k1k DONE: startup=148s bench=507s status=ok
+===== CALIBRATION COMPLETE =====
+label                model                image                     tp  conc  isl   osl   download_s  startup_s  bench_s  total_s  status
+gptoss_tp1_c4_1k1k   openai/gpt-oss-120b  vllm/vllm-openai:v0.22.0  1   4     1024  1024  815         221        89       310      ok
+gptoss_tp1_c64_1k1k  openai/gpt-oss-120b  vllm/vllm-openai:v0.22.0  1   64    1024  1024  815         191        275      466      ok
+gptoss_tp1_c4_8k1k   openai/gpt-oss-120b  vllm/vllm-openai:v0.22.0  1   4     8192  1024  815         142        105      247      ok
+gptoss_tp1_c64_8k1k  openai/gpt-oss-120b  vllm/vllm-openai:v0.22.0  1   64    8192  1024  815         148        507      655      ok
