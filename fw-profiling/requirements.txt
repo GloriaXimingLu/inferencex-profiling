@@ -1,0 +1,7 @@
+openai>=1.30
+# optional but recommended for accurate prompt sizing with the model's own tokenizer:
+transformers>=4.44
+# fallback tokenizer if transformers/the HF id is unavailable:
+tiktoken>=0.7
+# for plot.py PNG output:
+matplotlib>=3.7
