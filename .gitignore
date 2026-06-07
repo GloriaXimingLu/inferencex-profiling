@@ -40,3 +40,6 @@ tau-bench-replay
 
 # local provisioning copy with real infra IDs
 nebius/provision_tau_node.local.sh
+
+nebius/results_tau_c64/*.samples
+nebius/results_tau_c64/*.client.err

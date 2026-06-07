@@ -242,5 +242,38 @@ context); their server-side hit rate (from `/metrics`) still landed.
 
 ---
 
+### High concurrency on 8×H200 — the banking gap was a KV limit, not concurrency
+
+The 16-part run served banking at only C=4 (KV-bound on one H200). We expected higher
+concurrency to *widen* the realized-vs-ideal gap (more eviction). To test it, we re-ran the
+4 banking parts at **C=64 on a preemptible 8×H200 (TP=8, ~16× the KV pool)**:
+
+![Banking realized prefix-cache hit vs ideal — C=4 on 1×H200 vs C=64 on 8×H200](nebius/results_tau_c64/banking_conc_compare.png)
+
+| banking part | ideal | realized C=4 (1×H200) | realized C=64 (8×H200) | gap C=4 → C=64 |
+|---|--:|--:|--:|--:|
+| claude-opus-4-5 | 94.7 | 92.6 | 93.9 | 2.1% → **0.8%** |
+| gemini-3-pro | 96.6 | 94.0 | 95.5 | 2.6% → **1.1%** |
+| gpt-5-2 | 95.6 | 87.5 | 87.9 | 8.1% → **7.8%** |
+| qwen3.5 | 93.9 | 89.8 | 93.2 | 4.1% → **0.8%** |
+
+**The gap *narrowed* for 3 of 4 — the opposite of the hypothesis.** So the C=4 shortfall was a
+**single-H200 KV limitation, not long-context per se**: with ~16× more KV, prefix caching
+realizes ~the analytical ideal even at 16× concurrency. Only **gpt-5-2-banking** keeps its ~8%
+gap — its contexts are so large (62k mean, 271k max, exceeding gpt-oss's 128k cap) that they
+can't be fully cached at any concurrency.
+
+*Getting the 8×H200:* on-demand 8-GPU was `LOW` in every region (always `NotEnoughResources`);
+**preemptible was available and placed** (`--preemptible-on-preemption stop --recovery-policy
+fail`). Check live availability with `nebius capacity resource-advice list --parent-id <tenant>`.
+*Caveat:* at C=64, `client.py` crashed on 3/4 parts (`aiohttp LineTooLong` — banking's huge
+streamed responses exceed the 512 KB line limit), so client-side latency/throughput is missing
+for those; the realized hit rate (the headline) was recovered from `/metrics` m0/m1 snapshots.
+(Second `client.py` fix for the co-worker: raise aiohttp `read_bufsize`/line limit.)
+
+---
+
 ## Cost of this study
-~$6 (1×H200, ~1.7 h) for the sweep + C=64/C=4 cost-fidelity; C=256 adds ~$10. Nodes torn down.
+~$6 (1×H200, ~1.7 h) for the sweep + C=64/C=4 cost-fidelity; ~$10 for C=256; ~$20 for the
+16-part tau-bench replay (4 parallel H200s); ~$10 for the banking C=64 re-run (preemptible
+8×H200, ~30 min). **Total ≈ $45**, well under the $1,000 ceiling. All nodes torn down.
