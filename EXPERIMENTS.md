@@ -8,21 +8,18 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
 
 ## Summary
 
-1. **We're competitive with Fireworks, with a clear path to parity.** On identical H200 hardware,
-   our open-source vLLM stack runs gpt-oss-120b at roughly **60–75% of Fireworks' speed and
-   throughput**. The entire gap traces to a single feature — **speculative decoding** — which they
-   run and we don't yet; enabling it is a known, low-risk path to closing it.
-2. **Each H200 has a clear capacity and efficiency sweet spot.** One H200 sustains up to **~1,700
-   output tokens/s** and is most cost-effective at **concurrency ≈8–64** — near peak throughput,
-   where batching makes it **3.8× more energy-efficient per token**. Pushing past that buys almost
-   no extra throughput while response latency degrades sharply.
-3. **Our serving holds up on realistic, production-like traffic.** On replayed real agent
-   workloads, vLLM's caching delivers **~the best efficiency the workload allows**. The one weak
-   spot — very long-context retrieval — is fixed by **adding GPU memory** (more GPUs per replica),
-   not by re-engineering; we verified the fix.
-
-**What we'd do next:** pilot speculative decoding to chase Fireworks parity; serve in the C≈8–64
-range; scale GPUs-per-replica for long-context workloads. *(The entire study cost ≈ $45 of compute.)*
+- **vs Fireworks (§1):** at matched concurrency, our vLLM serves gpt-oss-120b at **~60–75% of
+  Fireworks' throughput and per-user speed**. Fireworks runs speculative decoding (~67%
+  acceptance); this vLLM configuration does not.
+- **Load sweep (§2):** throughput **saturates near concurrency 32–64** (+18% from C=64 to C=256);
+  **p99 time-to-first-token rises from 0.4 s to 113 s** over C=1→256; KV cache reaches 100% with
+  the first preemptions at C=256; **energy per output token falls 3.8×** (1.48→0.39 J) with batching.
+- **Cost vs fidelity (§3):** system-throughput estimates reach **~1% error within ~5 minutes**
+  (0.35% at the default budget), while **p99 tail latency is still ~13% off** at that budget and
+  needs a longer run.
+- **Realistic workload (§4):** realized prefix-cache hit rate **equals the analytical ideal within
+  <1%** for light/medium chat; for long-context RAG it was 2–8% lower at C=4 on 1×H200,
+  **narrowing to <1.1% for 3 of 4 workloads at C=64 on 8×H200** (16× the KV memory).
 
 ---
 
