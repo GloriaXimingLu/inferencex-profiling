@@ -50,6 +50,10 @@ at ~33 tok/s/user. To close the gap head-to-head, enable an MTP/draft model in v
 sampler + server log); see `metrics_table.tsv` for the full set and `METRICS.md` for how each is
 recorded. The table below is gpt-oss-120b, 1×H200, ISL≈8k/OSL=1k, C=1→256.
 
+![Metric trends across the concurrency sweep — throughput/interactivity, latency, KV pressure & preemptions, energy efficiency, batch-vs-queue, and prefill-vs-decode time, all vs concurrency](nebius/results_exp/metrics_sweep.png)
+
+The six panels above summarize the tables that follow: throughput saturates while interactivity falls (top-left); p99 TTFT explodes at saturation (top-mid); KV-cache fills to 100% and triggers preemptions at C=256 (top-right); batching cuts energy/token 3.8× (bottom-left); bigger batches buy throughput at the cost of queue time (bottom-mid); and decode-time/request dominates and grows with load (bottom-right).
+
 ### A. Throughput & latency
 | C | sys-tput (tok/s) | interactivity (tok/s/user) | mean TTFT (ms) | p99 TTFT (ms) | mean TPOT (ms) | mean ITL (ms) |
 |--:|--:|--:|--:|--:|--:|--:|
