@@ -14,3 +14,18 @@ credentials.json
 
 # OS
 .DS_Store
+
+# local provisioning copy with real SSH key
+nebius/cloud-init.local.yaml
+
+# bulky per-run raw experiment artifacts (keep .json/.tsv/.prom/.png, drop the rest)
+nebius/results_exp/*.samples
+nebius/results_exp/*.m0
+nebius/results_exp/*.m1
+nebius/results_exp/*.serverlog
+nebius/results_exp/*.client.log
+nebius/results_exp/*.log
+nebius/results_exp/exp.out
+
+# internal co-worker reports — DO NOT publish
+*.pdf
