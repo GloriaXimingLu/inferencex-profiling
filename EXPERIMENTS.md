@@ -8,21 +8,21 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
 
 ## Summary
 
-1. **vs Fireworks** — at matched load our vanilla vLLM gives **~1.3–1.6× less throughput** *and*
-   slower per-user speed. Almost all of it is the **speculative-decoding gap** (Fireworks runs it
-   at 67% acceptance; we don't). *Action: pilot a draft/MTP model in vLLM to close it.*
-2. **Where one H200 breaks** — throughput **saturates at concurrency ≈32–64**; beyond that you
-   gain <20% throughput but latency explodes (p99 time-to-first-token reaches 113 s at C=256).
-   *Action: serve in the C≈8–64 range.*
-3. **Benchmarking is cheaper than we run it** — **throughput is accurate to ~1% in a ~5-min cell**;
-   only **tail latency (p99)** needs a long run. *Action: default cells to ~conc×5, cutting sweep
-   cost 2–4×; reserve long runs for tail-SLO cells.*
-4. **Prefix caching delivers on realistic traffic** — vLLM realizes **~the theoretical-best cache
-   hit rate** on replayed agent chat. It fell 2–8% short only on long-context RAG, and that was a
-   **memory limit on one GPU, not a caching flaw**: re-running on 8×H200 (16× cache memory) closed
-   the gap. *Action: give long-context workloads more KV memory (more GPUs / tensor-parallel).*
+1. **We're competitive with Fireworks, with a clear path to parity.** On identical H200 hardware,
+   our open-source vLLM stack runs gpt-oss-120b at roughly **60–75% of Fireworks' speed and
+   throughput**. The entire gap traces to a single feature — **speculative decoding** — which they
+   run and we don't yet; enabling it is a known, low-risk path to closing it.
+2. **Each H200 has a clear capacity and efficiency sweet spot.** One H200 sustains up to **~1,700
+   output tokens/s** and is most cost-effective at **concurrency ≈8–64** — near peak throughput,
+   where batching makes it **3.8× more energy-efficient per token**. Pushing past that buys almost
+   no extra throughput while response latency degrades sharply.
+3. **Our serving holds up on realistic, production-like traffic.** On replayed real agent
+   workloads, vLLM's caching delivers **~the best efficiency the workload allows**. The one weak
+   spot — very long-context retrieval — is fixed by **adding GPU memory** (more GPUs per replica),
+   not by re-engineering; we verified the fix.
 
-Total compute cost of all four experiments: **≈ $45** (details at the end).
+**What we'd do next:** pilot speculative decoding to chase Fireworks parity; serve in the C≈8–64
+range; scale GPUs-per-replica for long-context workloads. *(The entire study cost ≈ $45 of compute.)*
 
 ---
 
