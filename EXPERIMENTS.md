@@ -36,12 +36,16 @@ curve is the throughput-vs-latency trade-off.
 | concurrency | ours: interactivity | ours: throughput | Fireworks: interactivity | Fireworks: throughput |
 |--:|--:|--:|--:|--:|
 | 1 | 232 | 214 | 310 | 250 |
+| 2 | 190 | 349 | 270 | 410 |
 | 4 | 140 | 520 | 255 | 800 |
+| 8 | 96 | 722 | 178 | 1,160 |
 | 16 | 63 | 946 | 113 | 1,570 |
+| 32 | 40 | 1,212 | 68 | 1,960 |
 | 64 | 24 | 1,455 | 35 | 2,300 |
+| 128 | 13.5 | 1,647 | 33 | 2,180 |
 | 256 | 8.5 | 1,722 | 33 | 2,300 |
 
-*(Full C=1,2,4…256 data in `metrics_table.tsv`.)*
+(interactivity in tok/s/user; throughput in output tok/s.)
 
 **Why the gap:** Fireworks runs **speculative decoding** (~67% draft-token acceptance), which lifts
 both throughput and per-user speed; our gpt-oss has no draft model. Secondarily, at high load a
@@ -74,6 +78,24 @@ makes latency explode.** We capture ~30 metrics/run (client + vLLM `/metrics` + 
 - **Higher load is more energy-efficient** — **1.48 → 0.39 J per output token (3.8×)** as power
   rises to 96% of the 700 W TDP. The perf-per-watt case for batching.
 
+<details><summary><b>Per-metric detail — every metric's trend (click to expand)</b></summary>
+
+- **System throughput** — rises steeply to C≈32, then flattens: +18% from C=64→256 (1,455→1,722) for an 8× concurrency increase. The Pareto knee is C≈32–64.
+- **Interactivity (per-user speed)** — monotonic decline, ~halving every ~4× concurrency (232→8.5).
+- **mean TTFT** — flat (<1 s) up to C=32, then blows up (25.5 s at C=256); first thing users feel when the box saturates.
+- **p99 TTFT** — blows up earlier and harder (441 ms → 113 s); the most sensitive saturation signal (>17 s already at C=64).
+- **mean TPOT / ITL** — rise ~27× (4.3→118 ms) as the decode batch shares the GPU; ITL≈TPOT ⇒ decode is steady, not bursty.
+- **KV-cache usage** — climbs to 100% only at C=256; headroom below that. Hitting the ceiling triggers preemptions.
+- **Preemptions** — exactly 0 until KV saturates, then 129 at C=256; a direct KV-pressure / over-subscription alarm.
+- **Prefill time/req** — sublinear (351→758 ms); prefill is compute-bound and batches efficiently.
+- **Decode time/req** — explodes (3.9 s → 104 s); the dominant component of end-to-end latency under load.
+- **Queue time/req** — 0 → 25 s; requests waiting for a scheduler slot — the other half of the TTFT blowup.
+- **Batch size (tokens/step)** — 9 → 1,736 (~190×); the mechanism that buys throughput, and why energy/token falls.
+- **GPU power** — 316 → 674 W (96% of the 700 W TDP); tracks utilization, useful for perf-per-watt & thermal budgeting.
+- **GPU utilization** — 80% at C=1, 98% at C=256; the H200 is well-fed even at low load (120B model).
+- **Energy/token** — 1.48 → 0.39 J/tok (3.8× more efficient); strongest argument for higher concurrency, latency budget permitting.
+</details>
+
 <details><summary><b>Full per-concurrency tables (click to expand)</b></summary>
 
 **Throughput & latency**
@@ -95,12 +117,14 @@ makes latency explode.** We capture ~30 metrics/run (client + vLLM `/metrics` + 
 | C | KV usage max (%) | preemptions | prefill/req (ms) | decode/req (ms) | queue/req (ms) | batch (tok/step) | power (W) | GPU util (%) | energy (J/tok) |
 |--:|--:|--:|--:|--:|--:|--:|--:|--:|--:|
 | 1 | 0.5 | 0 | 351 | 3,914 | 0 | 9 | 316 | 80 | 1.48 |
+| 2 | 1.4 | 0 | 332 | 4,804 | 0 | 17 | 382 | 85 | 1.10 |
 | 4 | 2.4 | 0 | 392 | 6,377 | 11 | 35 | 463 | 88 | 0.89 |
+| 8 | 4.3 | 0 | 428 | 9,185 | 128 | 69 | 534 | 91 | 0.74 |
 | 16 | 8.1 | 0 | 471 | 13,819 | 341 | 139 | 592 | 92 | 0.63 |
+| 32 | 16.0 | 0 | 509 | 21,896 | 693 | 273 | 641 | 95 | 0.53 |
 | 64 | 31.6 | 0 | 578 | 36,903 | 1,376 | 537 | 665 | 96 | 0.46 |
+| 128 | 62.9 | 0 | 665 | 64,304 | 2,866 | 1,095 | 672 | 97 | 0.41 |
 | 256 | 100.0 | 129 | 758 | 103,600 | 25,349 | 1,736 | 674 | 98 | 0.39 |
-
-*(Full C=1,2,4,8,16,32,64,128,256 in `metrics_table.tsv`.)*
 </details>
 
 *Prefix-cache hit and spec-decode read 0 / n-a here by design (random tokens, no draft model);
@@ -113,29 +137,62 @@ both come alive in §4.*
 **Finding: throughput and mean latency are accurate to ~1% in a few minutes — only p99 tail
 latency needs a long run.** So most benchmark cells can be shortened 2–4× with negligible loss.
 
-We measured fidelity two ways: throughput needs a real wall-clock window, so we use **repeated
-short runs** vs a long ground truth; latency percentiles are per-request, so we **bootstrap** the
-ground-truth run. ("Cost" = measurement wall-clock; "bias" = error vs the long run; "CV" =
-run-to-run noise.) At **C=64**:
+**Method.** Two metric types behave differently, so each is measured appropriately:
+- **System throughput** is a property of a real wall-clock window, so we run each budget
+  (`num_prompts = B×conc`) as **5 independent repeats** against a warm server and compare to a long
+  ground-truth run (`conc×40`). *bias* = |mean − ground_truth| / ground_truth; *run-to-run CV* =
+  std/mean across the 5 repeats (≈ the noise of re-running the same short benchmark).
+- **Latency percentiles** are per-request, so we **bootstrap** the ground-truth run's per-request
+  TTFT array (resample N requests, recompute, ×300) — the sampling error of a budget-N measurement
+  without paying for N separate runs. ("Cost" below = N / completion-rate, the measured-window equivalent.)
 
-| budget | ≈ cost | throughput bias | run-to-run CV | p99 TTFT error |
-|---|--:|--:|--:|--:|
-| conc×1 | ~2 min | 2.5% | 0.4% | 57% |
-| conc×5 | ~5 min | 1.0% | 0.2% | 27% |
-| **conc×10** (default) | **~8 min** | **0.35%** | **0.19%** | 13% |
+**System throughput — converges fast and low-noise** (C=64, ground truth = 1,461 tok/s):
 
-- **Throughput converges fast & is low-noise** — the default (conc×10) is already at 0.35%;
-  a ~5-min cell (conc×5) still lands within ~1%.
-- **Tail latency is the real cost driver** — p99 TTFT is still ~13% off even at the default; pin it
-  down only where it matters.
-- **At C=256** the balance shifts: throughput needs a touch more budget to settle (6.8% at conc×1
-  → 0.1% at conc×10) but p99 converges *better* (~6–15%), because each budget holds 4× more
-  requests. (Tail fidelity tracks request *count*, not wall-clock.)
+| budget | ≈ cost | throughput bias | run-to-run CV |
+|---|--:|--:|--:|
+| conc×1 | ~2.2 min | 2.5% | 0.4% |
+| conc×2 | ~2.9 min | 1.9% | 0.6% |
+| conc×5 | ~4.8 min | 1.0% | 0.2% |
+| **conc×10 (InferenceX default)** | **~8.2 min** | **0.35%** | **0.19%** |
+
+*(C=4 is similar from ~1 min: conc×10 → 1.9% bias; only the tiny conc×1 run is noisy at 7%.)*
+
+**Latency tails — converge slowly, the real cost driver** (C=64, bootstrap; ground truth = 2,560
+requests, mean TTFT 718 ms, p99 TTFT 11.6 s):
+
+| budget | ≈ cost | mean TTFT error | **p99 TTFT error** |
+|---|--:|--:|--:|
+| conc×1 | ~42 s | 1.3% | **57%** |
+| conc×2 | ~84 s | 1.1% | **51%** |
+| conc×5 | ~3.5 min | 0.3% | **27%** |
+| conc×10 | ~7 min | 0.1% | **13%** |
 
 ![Profiling cost vs fidelity — C=256/64/4: throughput bias + run-to-run CV (top) and latency-tail convergence (bottom)](nebius/results_exp/cost_fidelity.png)
 
-**Policy:** default benchmark cells to ~conc×5; reserve long runs only for cells reporting
-p99/tail SLOs.
+**Takeaways:**
+- **Throughput & mean latency are cheap** — within ~1% in under a minute; the default (conc×10) is
+  at 0.35% throughput bias, and a ~5-min cap (conc×5) still lands within ~1%. Sweeps can be cut 2–4×.
+- **Tail latency (p99) is expensive** — still ~13% off even at the default (conc×10, ~7 min); it
+  needs the long run.
+- **Policy:** default cells to ~conc×5; reserve long runs only for cells reporting p99/tail SLOs.
+
+<details><summary><b>C=256 (saturated regime) — where the balance shifts (click to expand)</b></summary>
+
+At C=256 (ground truth = 1,723 tok/s):
+
+| budget | ≈ cost | throughput bias | run-to-run CV | p99 TTFT error |
+|---|--:|--:|--:|--:|
+| conc×1 | ~7 min | 6.8% | 0.10% | ~6% |
+| conc×2 | ~9 min | 2.3% | 0.09% | ~6% |
+| conc×5 | ~16 min | 1.3% | 0.24% | ~15% |
+| conc×10 | ~27 min | 0.12% | 0.05% | ~12% |
+
+Two effects flip vs C=64: (1) **throughput needs a bit more budget** to converge (6.8% bias at
+conc×1 vs 2.5% at C=64) because the saturated server has a longer startup transient — but it's
+*extremely* repeatable (CV ≤0.24%); (2) **p99 TTFT converges far better** (~6–15% vs 57%) because
+each budget holds 4× more requests — tail fidelity tracks the absolute **request count**, not the
+wall-clock budget. (The absolute p99 of 67 s is itself a saturation artifact.)
+</details>
 
 ---
 
