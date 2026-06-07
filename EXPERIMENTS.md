@@ -16,7 +16,10 @@ run then **discarded**) on top of `10*conc` measured prompts — i.e. **`conc*12
 warmup dropped + 10× measured**, the same recipe Fireworks described. (Cross-check: co-worker's
 vLLM C=4 wall time 105 s = our independently measured 105 s.)
 
-### The curve (`fireworks_compare.png`)
+### The curve
+
+![vLLM vs Fireworks — system throughput vs per-user interactivity, GPT-OSS-120B, ISL≈8k/OSL=1k, 1×H200](nebius/results_exp/fireworks_compare.png)
+
 X = interactivity (per-user output speed, tok/s/user = 1000/mean_TPOT); Y = system throughput
 (output tok/s). Our vLLM sweep overlaid with the co-worker's Fireworks points (digitized from
 the report — happy to drop in exact values if you share the raw numbers).
@@ -155,7 +158,9 @@ Two effects flip at high concurrency: (1) **throughput needs a bit more budget**
 transient — but it's *extremely* repeatable (CV ≤0.24%); (2) **p99 TTFT converges far better
 than at C=64** (~6–15% vs 57%), simply because each budget at C=256 contains 4× more requests —
 tail fidelity tracks the absolute request count, not the wall-clock budget. (The absolute p99
-of 67 s is itself a saturation artifact.) See the 3-column `cost_fidelity.png`.
+of 67 s is itself a saturation artifact.)
+
+![Profiling cost vs fidelity — C=256/64/4: throughput bias + run-to-run CV (top) and latency-tail bootstrap convergence (bottom)](nebius/results_exp/cost_fidelity.png)
 
 ---
 
@@ -166,7 +171,9 @@ synthetic tokens) against gpt-oss-120b **with prefix caching ON**, using the co-
 `tau-bench-replay` toolkit. The point: does vLLM's prefix cache realize the *analytical ideal*
 hit rate on a realistic, cache-friendly workload — and how do the two regimes (light chat vs
 long-context RAG) behave? Light/medium domains at concurrency 64, banking (long-context) at 4.
-Plot: `tau_compare.png`; table: `nebius/results_tau/tau_table.tsv`.
+Plot below; table: `nebius/results_tau/tau_table.tsv`.
+
+![tau-bench — realized vs analytical-ideal prefix-cache hit rate (left), and throughput vs prompt size showing the two workload regimes (right)](nebius/results_tau/tau_compare.png)
 
 ### How the replay works (and what "model" means here)
 - **We do not send real text — we send synthetic token IDs.** For serving metrics (TTFT,

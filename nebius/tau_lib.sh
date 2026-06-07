@@ -8,7 +8,7 @@ TAU=/opt/tau; RES=/opt/results; HFC=/opt/hfcache
 PORT=8888; CTR=ix-vllm
 IMAGE="${IMAGE:-vllm/vllm-openai:v0.22.0}"
 MODEL="${MODEL:-openai/gpt-oss-120b}"
-MAXLEN="${MAXLEN:-131072}"; MAXSEQS="${MAXSEQS:-256}"
+MAXLEN="${MAXLEN:-131072}"; MAXSEQS="${MAXSEQS:-256}"; TP="${TP:-1}"
 mkdir -p "$RES"
 RUNS_TSV="$RES/tau_runs.tsv"
 [ -f "$RUNS_TSV" ] || echo -e "part\tconc\tntraces\twall_s\tt0\tt1" > "$RUNS_TSV"
@@ -28,13 +28,13 @@ predownload(){
 
 start_server(){
   sudo docker rm -f "$CTR" >/dev/null 2>&1 || true
-  dlog "start server: $MODEL prefix-caching=ON max-model-len=$MAXLEN"
-  sudo docker run -d --name "$CTR" --gpus all --network host --ipc=host --shm-size=16g \
+  dlog "start server: $MODEL TP=$TP prefix-caching=ON max-model-len=$MAXLEN"
+  sudo docker run -d --name "$CTR" --gpus all --network host --ipc=host --shm-size=32g \
     -v "$HFC":/hfcache -v "$RES":/results \
     -e HF_HUB_CACHE=/hfcache -e HF_HOME=/hfcache -e VLLM_MXFP4_USE_MARLIN=1 -e TORCH_CUDA_ARCH_LIST=9.0 \
     --entrypoint bash "$IMAGE" -lc "
       vllm serve '$MODEL' --host 0.0.0.0 --port $PORT \
-        --tensor-parallel-size 1 --max-num-seqs $MAXSEQS \
+        --tensor-parallel-size $TP --max-num-seqs $MAXSEQS \
         --max-model-len $MAXLEN --gpu-memory-utilization 0.92 \
         --max-num-batched-tokens 8192 --enable-prefix-caching > /results/server.log 2>&1
     " >/dev/null

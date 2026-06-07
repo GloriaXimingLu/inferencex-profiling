@@ -5,6 +5,8 @@
 # Usage: bash provision_tau_node.sh <domain> <conc> <ntraces> [region]
 set -uo pipefail
 DOMAIN="$1"; CONC="$2"; NTRACES="$3"; REGION="${4:-west}"
+PRESET="${PRESET:-1gpu-16vcpu-200gb}"; DISK="${DISK:-500}"; PREEMPT="${PREEMPT:-0}"; TP="${TP:-1}"
+PRE=(); [ "$PREEMPT" = 1 ] && PRE=(--preemptible-on-preemption stop --recovery-policy fail)  # preemptible requires recovery-policy=fail
 export PATH="$HOME/.nebius/bin:$PATH" NO_COLOR=1 TERM=dumb
 strip(){ sed -E 's/\x1b\[[0-9;]*m//g'; }
 ROOT=/Users/ximinglu/Projects/profiling
@@ -28,12 +30,12 @@ for R in "$REGION" west central; do
   region_cfg "$R"
   echo "[$DOMAIN] create in $R"
   out=$(nebius compute instance create --parent-id "$PID" --name "$NAME" \
-    --resources-platform gpu-h200-sxm --resources-preset 1gpu-16vcpu-200gb \
+    --resources-platform gpu-h200-sxm --resources-preset "$PRESET" "${PRE[@]}" \
     --boot-disk-attach-mode READ_WRITE --boot-disk-managed-disk-name "${NAME}-boot" \
     --boot-disk-managed-disk-type network_ssd \
     --boot-disk-managed-disk-source-image-family-image-family ubuntu24.04-cuda13.0 \
     --boot-disk-managed-disk-source-image-family-parent-id "$IMG" \
-    --boot-disk-managed-disk-size-gibibytes 500 \
+    --boot-disk-managed-disk-size-gibibytes "$DISK" \
     --network-interfaces "[{\"name\":\"eth0\",\"subnet_id\":\"$SUB\",\"ip_address\":{},\"public_ip_address\":{}}]" \
     --cloud-init-user-data "$CI" 2>&1 | strip)
   if echo "$out" | grep -qiE 'not enough|NotEnoughResources'; then
@@ -64,5 +66,5 @@ scp "${OPTS[@]}" "$ROOT"/nebius/tau_setup.sh "$ROOT"/nebius/tau_lib.sh "$ROOT"/n
 scp "${OPTS[@]}" "$ROOT"/tau-bench-replay/client.py "$ROOT"/tau-bench-replay/scheduler.py "$ROOT"/tau-bench-replay/synth.py "$ROOT"/tau-bench-replay/requirements.txt ubuntu@"$IP":/opt/tau/ 2>&1 | grep -v "Permanently added"
 scp "${OPTS[@]}" -r "$ROOT"/tau-bench-replay/schedule ubuntu@"$IP":/opt/tau/ 2>&1 | grep -v "Permanently added"
 ssh "${OPTS[@]}" ubuntu@"$IP" 'bash /tmp/tau_setup.sh 2>&1 | tail -4'
-ssh "${OPTS[@]}" ubuntu@"$IP" "cd /tmp && DOMAIN=$DOMAIN CONC=$CONC NTRACES=$NTRACES nohup bash tau_run.sh > /opt/results/tau_${DOMAIN}.out 2>&1 & echo launched PID \$!"
+ssh "${OPTS[@]}" ubuntu@"$IP" "cd /tmp && DOMAIN=$DOMAIN CONC=$CONC NTRACES=$NTRACES TP=$TP MAXSEQS=256 nohup bash tau_run.sh > /opt/results/tau_${DOMAIN}.out 2>&1 & echo launched PID \$!"
 echo "[$DOMAIN] LAUNCHED  IP=$IP  PID=$CREATED_PID  REGION=$CREATED_REGION"

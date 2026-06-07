@@ -37,3 +37,6 @@ nebius/results_tau/*.client.err
 # co-worker private repo (clone separately) + local creds
 tau-bench-replay/
 tau-bench-replay
+
+# local provisioning copy with real infra IDs
+nebius/provision_tau_node.local.sh

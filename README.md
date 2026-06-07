@@ -21,6 +21,8 @@ benchmarks on Nebius.
 
 **Experiments (see `EXPERIMENTS.md`)**
 - **vs Fireworks**: our vanilla vLLM trails Fireworks ~1.3–1.6× on throughput *and* interactivity at matched concurrency — the speculative-decoding gap (Fireworks 67% accept; vanilla gpt-oss none). At C=256 a single H200 is queue-bound (p99 TTFT 113 s, KV 100%, 129 preemptions).
+
+  ![vLLM vs Fireworks throughput-vs-interactivity](nebius/results_exp/fireworks_compare.png)
 - **Metrics**: ~30 metrics/run captured (client + vLLM `/metrics` + GPU + logs); see `METRICS.md`.
 - **Cost vs fidelity**: system throughput is within **~0.35%** at the InferenceX default (conc×10) and within ~1% at a 5-min cap; **p99 tail latency** is the only metric needing the long run.
 
