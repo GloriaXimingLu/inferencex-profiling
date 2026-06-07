@@ -168,6 +168,27 @@ hit rate on a realistic, cache-friendly workload — and how do the two regimes 
 long-context RAG) behave? Light/medium domains at concurrency 64, banking (long-context) at 4.
 Plot: `tau_compare.png`; table: `nebius/results_tau/tau_table.tsv`.
 
+### How the replay works (and what "model" means here)
+- **We do not send real text — we send synthetic token IDs.** For serving metrics (TTFT,
+  decode, throughput, prefix-cache hit) only *sequence lengths* and *prefix-sharing structure*
+  drive the engine; token values are irrelevant. From each τ-bench trajectory we keep only the
+  *shape* of each call (input len, output len, agent vs. user-simulator stream, per-conversation
+  order) and synthesize tokens that reproduce the exact structure — **one shared system block +
+  a per-conversation growing body** — with IDs in a fixed range (`--id-lo/--id-hi`, kept below
+  the served model's vocab). Tokenizer-independent, so it recreates the same cache-reuse on any
+  served model.
+- **Replay loop:** each conversation is a closed-loop session run **strictly sequentially**
+  (call k+1 only after k returns → the append-only prompt keeps the prefix cache warm), with
+  **many sessions concurrent** (`--concurrency`) to load the server. Output length is **forced**
+  to the recorded value (`max_tokens=min_tokens`, `ignore_eos`). Fully deterministic — only the
+  server's *timing* varies, which is what we measure; realized hit rate is compared to the
+  analytical ideal in `stats/`.
+- **Two distinct "model" roles:** (1) **source models** define the *workload shape* only —
+  `gpt-5-2`, `claude-opus-4-5`, `gemini-3-pro`, `qwen3.5-397b-a17b-think` (× 4 domains = the 16
+  parts); (2) the **served model** actually benchmarked on the GPU is **gpt-oss-120b** (FP4,
+  1×H200, prefix caching ON). Because tokens are synthetic, the served model is independent of
+  which source-model trace is replayed.
+
 | domain | source model | realized hit | ideal (+sys) | gap | out tok/s | TTFT p95 (ms) |
 |---|---|--:|--:|--:|--:|--:|
 | airline | claude-opus-4-5 | 0.914 | 0.915 | 0.1 | 1,782 | 232 |
