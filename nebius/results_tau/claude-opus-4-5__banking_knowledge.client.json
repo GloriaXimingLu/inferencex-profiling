@@ -1,0 +1,26 @@
+{
+  "part": "claude-opus-4-5__banking_knowledge",
+  "concurrency": 4,
+  "dry_run": false,
+  "requests": 875,
+  "wall_s": 279.33,
+  "req_per_s": 3.1,
+  "output_tok_per_s": 453,
+  "ttft_ms": {
+    "p50": 60,
+    "p95": 278
+  },
+  "e2e_ms": {
+    "p50": 857,
+    "p95": 3213
+  },
+  "scheduler": {
+    "emitted": 875,
+    "completed": 875,
+    "total_calls": 875,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

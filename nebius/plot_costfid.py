@@ -74,14 +74,23 @@ def bootstrap_latency(rdir, runs, conc, metric="ttft"):
         rows.append((N, N/rate, e_mean, ci_mean, e_p99, ci_p99))
     return rows, rate
 
+def detect_concs(rdir):
+    cs = []
+    for p in glob.glob(os.path.join(rdir, "gt_c*.json")):
+        try: cs.append(int(os.path.basename(p)[4:-5]))
+        except ValueError: pass
+    return sorted(set(cs), reverse=True)  # high concurrency first
+
 def main():
     rdir = sys.argv[1] if len(sys.argv)>1 else "nebius/results_exp"
     usd_hr = 3.5
     if "--node-usd-per-hr" in sys.argv: usd_hr = float(sys.argv[sys.argv.index("--node-usd-per-hr")+1])
     runs = load_runs(rdir)
-    fig, axes = plt.subplots(2, 2, figsize=(13,10))
+    concs = detect_concs(rdir)
+    n = len(concs)
+    fig, axes = plt.subplots(2, n, figsize=(6.5*n, 10), squeeze=False)
 
-    for col, conc in enumerate([64, 4]):
+    for col, conc in enumerate(concs):
         # (A) throughput real variance
         ax = axes[0][col]
         rt, ref = real_throughput(rdir, runs, conc)

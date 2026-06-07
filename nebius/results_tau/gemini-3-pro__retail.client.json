@@ -1,0 +1,26 @@
+{
+  "part": "gemini-3-pro__retail",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 3023,
+  "wall_s": 420.88,
+  "req_per_s": 7.2,
+  "output_tok_per_s": 2095,
+  "ttft_ms": {
+    "p50": 89,
+    "p95": 146
+  },
+  "e2e_ms": {
+    "p50": 3751,
+    "p95": 26056
+  },
+  "scheduler": {
+    "emitted": 3023,
+    "completed": 3023,
+    "total_calls": 3023,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

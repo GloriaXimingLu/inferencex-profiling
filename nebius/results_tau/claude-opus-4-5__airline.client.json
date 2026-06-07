@@ -1,0 +1,26 @@
+{
+  "part": "claude-opus-4-5__airline",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 2498,
+  "wall_s": 405.18,
+  "req_per_s": 6.2,
+  "output_tok_per_s": 1782,
+  "ttft_ms": {
+    "p50": 106,
+    "p95": 232
+  },
+  "e2e_ms": {
+    "p50": 4726,
+    "p95": 23735
+  },
+  "scheduler": {
+    "emitted": 2498,
+    "completed": 2498,
+    "total_calls": 2498,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

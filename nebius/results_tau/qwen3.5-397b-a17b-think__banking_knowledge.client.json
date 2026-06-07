@@ -1,0 +1,26 @@
+{
+  "part": "qwen3.5-397b-a17b-think__banking_knowledge",
+  "concurrency": 4,
+  "dry_run": false,
+  "requests": 576,
+  "wall_s": 233.77,
+  "req_per_s": 2.5,
+  "output_tok_per_s": 496,
+  "ttft_ms": {
+    "p50": 52,
+    "p95": 230
+  },
+  "e2e_ms": {
+    "p50": 824,
+    "p95": 4312
+  },
+  "scheduler": {
+    "emitted": 576,
+    "completed": 576,
+    "total_calls": 576,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

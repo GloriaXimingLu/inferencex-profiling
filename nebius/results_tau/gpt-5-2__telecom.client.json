@@ -1,0 +1,26 @@
+{
+  "part": "gpt-5-2__telecom",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 4180,
+  "wall_s": 341.28,
+  "req_per_s": 12.2,
+  "output_tok_per_s": 1721,
+  "ttft_ms": {
+    "p50": 96,
+    "p95": 145
+  },
+  "e2e_ms": {
+    "p50": 1782,
+    "p95": 17377
+  },
+  "scheduler": {
+    "emitted": 4180,
+    "completed": 4180,
+    "total_calls": 4180,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "part": "gemini-3-pro__airline",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 2946,
+  "wall_s": 701.87,
+  "req_per_s": 4.2,
+  "output_tok_per_s": 2018,
+  "ttft_ms": {
+    "p50": 82,
+    "p95": 148
+  },
+  "e2e_ms": {
+    "p50": 4154,
+    "p95": 38403
+  },
+  "scheduler": {
+    "emitted": 2946,
+    "completed": 2946,
+    "total_calls": 2946,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

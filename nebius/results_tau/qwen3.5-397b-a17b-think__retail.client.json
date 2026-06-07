@@ -1,0 +1,26 @@
+{
+  "part": "qwen3.5-397b-a17b-think__retail",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 3119,
+  "wall_s": 411.16,
+  "req_per_s": 7.6,
+  "output_tok_per_s": 1907,
+  "ttft_ms": {
+    "p50": 111,
+    "p95": 195
+  },
+  "e2e_ms": {
+    "p50": 3693,
+    "p95": 23427
+  },
+  "scheduler": {
+    "emitted": 3119,
+    "completed": 3119,
+    "total_calls": 3119,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

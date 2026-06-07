@@ -1,0 +1,26 @@
+{
+  "part": "gpt-5-2__retail",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 2832,
+  "wall_s": 300.23,
+  "req_per_s": 9.4,
+  "output_tok_per_s": 1944,
+  "ttft_ms": {
+    "p50": 101,
+    "p95": 192
+  },
+  "e2e_ms": {
+    "p50": 2506,
+    "p95": 23790
+  },
+  "scheduler": {
+    "emitted": 2832,
+    "completed": 2832,
+    "total_calls": 2832,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

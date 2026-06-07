@@ -1,0 +1,26 @@
+{
+  "part": "qwen3.5-397b-a17b-think__telecom",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 4141,
+  "wall_s": 264.76,
+  "req_per_s": 15.6,
+  "output_tok_per_s": 1821,
+  "ttft_ms": {
+    "p50": 102,
+    "p95": 157
+  },
+  "e2e_ms": {
+    "p50": 2102,
+    "p95": 9896
+  },
+  "scheduler": {
+    "emitted": 4141,
+    "completed": 4141,
+    "total_calls": 4141,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "part": "claude-opus-4-5__retail",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 2725,
+  "wall_s": 257.21,
+  "req_per_s": 10.6,
+  "output_tok_per_s": 1816,
+  "ttft_ms": {
+    "p50": 111,
+    "p95": 244
+  },
+  "e2e_ms": {
+    "p50": 4013,
+    "p95": 14499
+  },
+  "scheduler": {
+    "emitted": 2725,
+    "completed": 2725,
+    "total_calls": 2725,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

@@ -29,3 +29,11 @@ nebius/results_exp/exp.out
 
 # internal co-worker reports — DO NOT publish
 *.pdf
+
+# tau-bench bulky per-part artifacts (keep client.json + m0/m1 + table + png)
+nebius/results_tau/*.samples
+nebius/results_tau/*.client.err
+
+# co-worker private repo (clone separately) + local creds
+tau-bench-replay/
+tau-bench-replay

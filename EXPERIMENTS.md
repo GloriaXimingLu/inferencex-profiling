@@ -142,8 +142,71 @@ differently:
   (conc×2–5), and reserve long runs only for the subset of cells where p99/tail SLOs are
   reported.
 
-*(C=256 cost-fidelity is running and will be appended here + as a third column in
-`cost_fidelity.png`; the high-saturation regime is where this trade-off matters most.)*
+### C=256 (saturated regime — ref = 1,723 tok/s)
+| budget | ≈ cost | throughput bias | run-to-run CV | p99 TTFT error |
+|---|--:|--:|--:|--:|
+| conc×1 | ~7 min | 6.8% | 0.10% | ~6% |
+| conc×2 | ~9 min | 2.3% | 0.09% | ~6% |
+| conc×5 | ~16 min | 1.3% | 0.24% | ~15% |
+| conc×10 | ~27 min | 0.12% | 0.05% | ~12% |
+
+Two effects flip at high concurrency: (1) **throughput needs a bit more budget** to converge
+(6.8% bias at conc×1 vs 2.5% at C=64) because the saturated server has a longer startup
+transient — but it's *extremely* repeatable (CV ≤0.24%); (2) **p99 TTFT converges far better
+than at C=64** (~6–15% vs 57%), simply because each budget at C=256 contains 4× more requests —
+tail fidelity tracks the absolute request count, not the wall-clock budget. (The absolute p99
+of 67 s is itself a saturation artifact.) See the 3-column `cost_fidelity.png`.
+
+---
+
+## 4. Realistic workload — tau-bench replay (all 16 model×domain parts)
+
+Replays Sierra τ-bench agent traffic (real prompt/output lengths + prefix-sharing structure,
+synthetic tokens) against gpt-oss-120b **with prefix caching ON**, using the co-worker's
+`tau-bench-replay` toolkit. The point: does vLLM's prefix cache realize the *analytical ideal*
+hit rate on a realistic, cache-friendly workload — and how do the two regimes (light chat vs
+long-context RAG) behave? Light/medium domains at concurrency 64, banking (long-context) at 4.
+Plot: `tau_compare.png`; table: `nebius/results_tau/tau_table.tsv`.
+
+| domain | source model | realized hit | ideal (+sys) | gap | out tok/s | TTFT p95 (ms) |
+|---|---|--:|--:|--:|--:|--:|
+| airline | claude-opus-4-5 | 0.914 | 0.915 | 0.1 | 1,782 | 232 |
+| airline | gemini-3-pro | 0.922 | 0.924 | 0.2 | 2,018 | 148 |
+| airline | gpt-5-2 | 0.894 | 0.897 | 0.3 | 1,998 | 199 |
+| airline | qwen3.5 | 0.920 | 0.927 | 0.7 | 1,943 | 201 |
+| retail | claude-opus-4-5 | 0.921 | 0.922 | 0.1 | 1,816 | 244 |
+| retail | gemini-3-pro | 0.934 | 0.936 | 0.2 | 2,095 | 146 |
+| retail | gpt-5-2 | 0.909 | 0.912 | 0.3 | 1,944 | 192 |
+| retail | qwen3.5 | 0.924 | 0.927 | 0.3 | 1,907 | 195 |
+| telecom | claude-opus-4-5 | 0.973 | 0.975 | 0.2 | 1,687 | 154 |
+| telecom | gemini-3-pro | 0.975 | 0.974 | −0.1 | n/a* | n/a* |
+| telecom | gpt-5-2 | 0.968 | 0.969 | 0.1 | 1,721 | 145 |
+| telecom | qwen3.5 | 0.973 | 0.978 | 0.5 | 1,821 | 157 |
+| banking | claude-opus-4-5 | 0.926 | 0.947 | **2.1** | 453 | 278 |
+| banking | gemini-3-pro | 0.940 | 0.966 | **2.6** | 442 | 406 |
+| banking | gpt-5-2 | 0.875 | 0.956 | **8.1** | n/a* | n/a* |
+| banking | qwen3.5 | 0.898 | 0.939 | **4.1** | 496 | 230 |
+
+\* client-side latency/throughput missing for 2 parts whose outliers crashed the client
+(gemini-telecom has a 65k-token output; gpt-5-2-banking a 271k-token input > gpt-oss's 128k
+context); their server-side hit rate (from `/metrics`) still landed.
+
+### Findings
+- **Light & medium chat (airline / retail / telecom): vLLM realizes the analytical ideal hit
+  rate almost exactly — gap <1% everywhere.** Prefix caching "just works"; the realized number
+  you'd measure equals what the workload structure allows.
+- **Long-context RAG (banking_knowledge): realized falls 2–8% below ideal.** The huge contexts
+  (mean 17–62k, up to 271k tokens) create KV pressure, so cached prefix blocks get evicted before
+  reuse. The gap is worst for gpt-5-2-banking (8.1%, the largest contexts). **This is the
+  actionable result: prefix-cache benefit degrades exactly where contexts are longest** — more KV
+  (or higher cache priority for long shared prefixes) would recover it.
+- **Two throughput regimes, ~4× apart:** light/medium chat sustains ~1,700–2,100 output tok/s at
+  ~150–250 ms TTFT; long-context RAG drops to ~450 tok/s (prefill-bound) at ~280–410 ms TTFT.
+- **Tooling note (worth telling the co-worker):** `tau-bench-replay/client.py` reads
+  `vllm:gpu_prefix_cache_{hits,queries}_total`, but vLLM v0.22 renamed these to
+  `vllm:prefix_cache_{hits,queries}_total` — so its `server_prefix_cache` returns `None`. We
+  recovered the headline metric from independent `/metrics` snapshots; the one-line fix is to add
+  the new name to the regex in `scrape_prefix_cache`.
 
 ---
 

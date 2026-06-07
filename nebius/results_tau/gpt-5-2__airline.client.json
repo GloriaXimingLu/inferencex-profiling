@@ -1,0 +1,26 @@
+{
+  "part": "gpt-5-2__airline",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 2530,
+  "wall_s": 587.04,
+  "req_per_s": 4.3,
+  "output_tok_per_s": 1998,
+  "ttft_ms": {
+    "p50": 95,
+    "p95": 199
+  },
+  "e2e_ms": {
+    "p50": 3923,
+    "p95": 46205
+  },
+  "scheduler": {
+    "emitted": 2530,
+    "completed": 2530,
+    "total_calls": 2530,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

@@ -1,0 +1,17 @@
+part	domain	model	prompt_mean	requests	realized_hit	ideal_hit_sys	ideal_hit_intra	ttft_p50_ms	ttft_p95_ms	e2e_p50_ms	out_tok_s	req_s	prefill_ms	decode_ms	queue_ms	preempt	kv_max_pct	power_w
+claude-opus-4-5__airline	airline	claude-opus-4-5	5591	2498	0.9138	0.915	0.832	106	232	4726	1782	6.2	91.9	7519.8	0.0	0.0	15.7	640.3
+gemini-3-pro__airline	airline	gemini-3-pro	3519	2946	0.9224	0.924	0.859	82	148	4154	2018	4.2	68.4	9981.1	0.0	0.0	12.3	609.6
+gpt-5-2__airline	airline	gpt-5-2	4111	2530	0.8941	0.897	0.826	95	199	3923	1998	4.3	80.0	10577.2	0.0	0.0	16.4	629.5
+qwen3.5-397b-a17b-think__airline	airline	qwen3.5-397b-a17b-think	6180	3336	0.9202	0.927	0.875	101	201	3705	1943	3.6	86.0	12625.7	0.0	0.0	22.0	636.9
+claude-opus-4-5__banking_knowledge	banking_knowledge	claude-opus-4-5	22147	875	0.926	0.947	0.939	60	278	857	453	3.1	76.7	1118.0	0.0	0.0	7.1	509.8
+gemini-3-pro__banking_knowledge	banking_knowledge	gemini-3-pro	36109	1099	0.9397	0.966	0.964	74	406	1462	442	0.9	112.9	3752.8	0.0	0.0	14.2	499.9
+gpt-5-2__banking_knowledge	banking_knowledge	gpt-5-2	61657		0.875	0.956	0.954						200.6	3849.2	0.0	0.0	17.4	538.4
+qwen3.5-397b-a17b-think__banking_knowledge	banking_knowledge	qwen3.5-397b-a17b-think	16895	576	0.898	0.939	0.929	52	230	824	496	2.5	69.6	1423.9	0.0	0.0	4.5	489.5
+claude-opus-4-5__retail	retail	claude-opus-4-5	5144	2725	0.921	0.922	0.842	111	244	4013	1816	10.6	93.3	5142.3	0.0	0.0	12.5	676.9
+gemini-3-pro__retail	retail	gemini-3-pro	3508	3023	0.9344	0.936	0.864	89	146	3751	2095	7.2	71.1	7090.4	0.0	0.0	8.5	666.1
+gpt-5-2__retail	retail	gpt-5-2	4063	2832	0.9093	0.912	0.845	101	192	2506	1944	9.4	81.6	5479.5	0.0	0.0	11.7	676.0
+qwen3.5-397b-a17b-think__retail	retail	qwen3.5-397b-a17b-think	5563	3119	0.9243	0.927	0.866	111	195	3693	1907	7.6	88.3	6851.4	0.0	0.0	15.0	672.6
+claude-opus-4-5__telecom	telecom	claude-opus-4-5	6435	4164	0.9726	0.975	0.924	103	154	2292	1687	14.1	77.1	3376.0	0.0	0.0	8.5	667.0
+gemini-3-pro__telecom	telecom	gemini-3-pro	5397		0.9748	0.974	0.918						65.4	6268.7	0.0	0.0	7.5	679.9
+gpt-5-2__telecom	telecom	gpt-5-2	5485	4180	0.9676	0.969	0.918	96	145	1782	1721	12.2	72.6	3669.9	0.0	0.0	9.0	652.2
+qwen3.5-397b-a17b-think__telecom	telecom	qwen3.5-397b-a17b-think	6105	4141	0.9734	0.978	0.932	102	157	2102	1821	15.6	76.7	3290.4	0.0	0.0	8.1	673.7

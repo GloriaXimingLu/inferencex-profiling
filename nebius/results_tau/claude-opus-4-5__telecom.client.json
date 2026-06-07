@@ -1,0 +1,26 @@
+{
+  "part": "claude-opus-4-5__telecom",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 4164,
+  "wall_s": 295.76,
+  "req_per_s": 14.1,
+  "output_tok_per_s": 1687,
+  "ttft_ms": {
+    "p50": 103,
+    "p95": 154
+  },
+  "e2e_ms": {
+    "p50": 2292,
+    "p95": 12303
+  },
+  "scheduler": {
+    "emitted": 4164,
+    "completed": 4164,
+    "total_calls": 4164,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}
