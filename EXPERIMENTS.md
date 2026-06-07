@@ -14,9 +14,9 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
 - **Load sweep (§2):** throughput **saturates near concurrency 32–64** (+18% from C=64 to C=256);
   **p99 time-to-first-token rises from 0.4 s to 113 s** over C=1→256; KV cache reaches 100% with
   the first preemptions at C=256; **energy per output token falls 3.8×** (1.48→0.39 J) with batching.
-- **Cost vs fidelity (§3):** system-throughput estimates reach **~1% error within ~5 minutes**
-  (0.35% at the default budget), while **p99 tail latency is still ~13% off** at that budget and
-  needs a longer run.
+- **Cost vs fidelity (§3):** at production-like load (C=256), short benchmarks are **highly
+  repeatable** (run-to-run CV <0.25%); the default budget estimates throughput to **0.12%** and
+  trimming to ~conc×5 (~16 min) still gives **~1.3%**, while **p99 tail latency stays ~6–15%**.
 - **Realistic workload (§4):** realized prefix-cache hit rate **equals the analytical ideal within
   <1%** for light/medium chat; for long-context RAG it was 2–8% lower at C=4 on 1×H200,
   **narrowing to <1.1% for 3 of 4 workloads at C=64 on 8×H200** (16× the KV memory).
@@ -134,8 +134,9 @@ both come alive in §4.*
 
 ## 3. How cheaply can we benchmark? (cost vs fidelity)
 
-**Finding: throughput and mean latency are accurate to ~1% in a few minutes — only p99 tail
-latency needs a long run.** So most benchmark cells can be shortened 2–4× with negligible loss.
+**Finding (at production-like load, C=256): short benchmarks are highly repeatable (run-to-run
+CV <0.25%); the default budget nails throughput to 0.12%, and trimming to ~conc×5 (~16 min) still
+gives ~1.3%. Mean latency converges immediately; only p99 tail latency stays noisy (~6–15%).**
 
 **Method.** Two metric types behave differently, so each is measured appropriately:
 - **System throughput** is a property of a real wall-clock window, so we run each budget
@@ -144,54 +145,65 @@ latency needs a long run.** So most benchmark cells can be shortened 2–4× wit
   std/mean across the 5 repeats (≈ the noise of re-running the same short benchmark).
 - **Latency percentiles** are per-request, so we **bootstrap** the ground-truth run's per-request
   TTFT array (resample N requests, recompute, ×300) — the sampling error of a budget-N measurement
-  without paying for N separate runs. ("Cost" below = N / completion-rate, the measured-window equivalent.)
+  without paying for N separate runs. ("Cost" = N / completion-rate, the measured-window equivalent;
+  the throughput table's cost is the full repeated-run wall-clock, which also includes warmup.)
 
-**System throughput — converges fast and low-noise** (C=64, ground truth = 1,461 tok/s):
+**System throughput — repeatable; default budget is accurate** (C=256, ground truth = 1,723 tok/s):
+
+| budget | ≈ cost | throughput bias | run-to-run CV |
+|---|--:|--:|--:|
+| conc×1 | ~7 min | 6.8% | 0.10% |
+| conc×2 | ~9 min | 2.3% | 0.09% |
+| conc×5 | ~16 min | 1.3% | 0.24% |
+| **conc×10 (InferenceX default)** | **~27 min** | **0.12%** | **0.05%** |
+
+**Latency — mean converges instantly; p99 tail stays noisy** (C=256, bootstrap; ground truth =
+3,840 requests, mean TTFT 25.0 s, p99 TTFT 67.5 s):
+
+| budget | ≈ cost | mean TTFT error | p99 TTFT error |
+|---|--:|--:|--:|
+| conc×1 | ~2.6 min | 0.2% | 5.5% |
+| conc×2 | ~5.2 min | 0.1% | 5.9% |
+| conc×5 | ~13 min | 0.0% | 14.6% |
+| conc×10 | ~26 min | 0.0% | 12.1% |
+
+![Profiling cost vs fidelity — C=256/64/4: throughput bias + run-to-run CV (top) and latency-tail convergence (bottom)](nebius/results_exp/cost_fidelity.png)
+
+**Takeaways:**
+- **The default budget is reliable at production load** — 0.12% throughput bias, CV <0.1%. Trimming
+  to ~conc×5 (~16 min) still gives ~1.3%; below that (conc×1–2) throughput drifts to 2–7%.
+- **Tail latency is the noisy one** — mean TTFT is exact almost immediately, but p99 stays ~6–15%
+  (the absolute p99 of 67 s at C=256 is a saturation artifact dominated by a few extreme-queue
+  requests). Report p99 with that caveat.
+- **Policy:** at production load keep ~conc×5–10; the larger cost cuts (2–4×) and the p99 bottleneck
+  show up at lower concurrency (below).
+
+<details><summary><b>Lower load (C=64, C=4) — bigger cost cuts, but p99 becomes the bottleneck (click to expand)</b></summary>
+
+**C=64 throughput** (ground truth = 1,461 tok/s):
 
 | budget | ≈ cost | throughput bias | run-to-run CV |
 |---|--:|--:|--:|
 | conc×1 | ~2.2 min | 2.5% | 0.4% |
 | conc×2 | ~2.9 min | 1.9% | 0.6% |
 | conc×5 | ~4.8 min | 1.0% | 0.2% |
-| **conc×10 (InferenceX default)** | **~8.2 min** | **0.35%** | **0.19%** |
+| conc×10 (default) | ~8.2 min | 0.35% | 0.19% |
 
 *(C=4 is similar from ~1 min: conc×10 → 1.9% bias; only the tiny conc×1 run is noisy at 7%.)*
 
-**Latency tails — converge slowly, the real cost driver** (C=64, bootstrap; ground truth = 2,560
-requests, mean TTFT 718 ms, p99 TTFT 11.6 s):
+**C=64 latency tails** (bootstrap; ground truth = 2,560 requests, mean TTFT 718 ms, p99 TTFT 11.6 s):
 
-| budget | ≈ cost | mean TTFT error | **p99 TTFT error** |
+| budget | ≈ cost | mean TTFT error | p99 TTFT error |
 |---|--:|--:|--:|
-| conc×1 | ~42 s | 1.3% | **57%** |
-| conc×2 | ~84 s | 1.1% | **51%** |
-| conc×5 | ~3.5 min | 0.3% | **27%** |
-| conc×10 | ~7 min | 0.1% | **13%** |
+| conc×1 | ~42 s | 1.3% | 57% |
+| conc×2 | ~84 s | 1.1% | 51% |
+| conc×5 | ~3.5 min | 0.3% | 27% |
+| conc×10 | ~7 min | 0.1% | 13% |
 
-![Profiling cost vs fidelity — C=256/64/4: throughput bias + run-to-run CV (top) and latency-tail convergence (bottom)](nebius/results_exp/cost_fidelity.png)
-
-**Takeaways:**
-- **Throughput & mean latency are cheap** — within ~1% in under a minute; the default (conc×10) is
-  at 0.35% throughput bias, and a ~5-min cap (conc×5) still lands within ~1%. Sweeps can be cut 2–4×.
-- **Tail latency (p99) is expensive** — still ~13% off even at the default (conc×10, ~7 min); it
-  needs the long run.
-- **Policy:** default cells to ~conc×5; reserve long runs only for cells reporting p99/tail SLOs.
-
-<details><summary><b>C=256 (saturated regime) — where the balance shifts (click to expand)</b></summary>
-
-At C=256 (ground truth = 1,723 tok/s):
-
-| budget | ≈ cost | throughput bias | run-to-run CV | p99 TTFT error |
-|---|--:|--:|--:|--:|
-| conc×1 | ~7 min | 6.8% | 0.10% | ~6% |
-| conc×2 | ~9 min | 2.3% | 0.09% | ~6% |
-| conc×5 | ~16 min | 1.3% | 0.24% | ~15% |
-| conc×10 | ~27 min | 0.12% | 0.05% | ~12% |
-
-Two effects flip vs C=64: (1) **throughput needs a bit more budget** to converge (6.8% bias at
-conc×1 vs 2.5% at C=64) because the saturated server has a longer startup transient — but it's
-*extremely* repeatable (CV ≤0.24%); (2) **p99 TTFT converges far better** (~6–15% vs 57%) because
-each budget holds 4× more requests — tail fidelity tracks the absolute **request count**, not the
-wall-clock budget. (The absolute p99 of 67 s is itself a saturation artifact.)
+At C=64, throughput is cheap (within ~1% in <5 min → cells can be cut 2–4×), but **p99 TTFT is the
+cost driver** — still 13% off even at the default. The contrast with C=256: tail fidelity tracks
+the absolute **request count**, so the saturated regime (4× more requests per budget) actually
+estimates p99 more readily, while throughput there needs a bit more budget to settle.
 </details>
 
 ---
