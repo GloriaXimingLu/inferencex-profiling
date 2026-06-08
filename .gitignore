@@ -43,3 +43,10 @@ nebius/provision_tau_node.local.sh
 
 nebius/results_tau_c64/*.samples
 nebius/results_tau_c64/*.client.err
+
+nebius/*.local.sh
+
+nebius/results_spec/*.samples
+nebius/results_spec/*.out
+nebius/results_tau_c64_lat/*.samples
+nebius/results_tau_c64_lat/*.out

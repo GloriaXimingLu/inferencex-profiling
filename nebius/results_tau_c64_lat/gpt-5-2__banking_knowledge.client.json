@@ -1,0 +1,26 @@
+{
+  "part": "gpt-5-2__banking_knowledge",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 3910,
+  "wall_s": 707.08,
+  "req_per_s": 5.5,
+  "output_tok_per_s": 2819,
+  "ttft_ms": {
+    "p50": 120,
+    "p95": 416
+  },
+  "e2e_ms": {
+    "p50": 2703,
+    "p95": 34492
+  },
+  "scheduler": {
+    "emitted": 3910,
+    "completed": 3910,
+    "total_calls": 3910,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}

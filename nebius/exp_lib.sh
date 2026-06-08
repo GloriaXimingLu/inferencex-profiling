@@ -38,7 +38,16 @@ predownload(){
 start_server(){
   sudo docker rm -f "$CTR" >/dev/null 2>&1 || true
   local pc=""; [ "$PREFIX_CACHING" = off ] && pc="--no-enable-prefix-caching" || pc="--enable-prefix-caching"
-  dlog "start server: $MODEL TP=1 max-num-seqs=$MAXSEQS max-model-len=$MAXLEN prefix-caching=$PREFIX_CACHING"
+  # Optional EAGLE3 speculative decoding: SPEC=<eagle3-head-model>. Passed via a
+  # vLLM --config YAML to dodge JSON-quoting inside the docker -lc string.
+  local spec_args=""
+  if [ -n "${SPEC:-}" ]; then
+    cat > "$RES/spec.yaml" <<YAML
+speculative-config: '{"model":"$SPEC","num_speculative_tokens":${SPEC_NUM:-7},"method":"eagle3","draft_tensor_parallel_size":1}'
+YAML
+    spec_args="--config /results/spec.yaml"
+  fi
+  dlog "start server: $MODEL TP=1 max-num-seqs=$MAXSEQS max-model-len=$MAXLEN prefix-caching=$PREFIX_CACHING spec=${SPEC:-none}"
   sudo docker run -d --name "$CTR" --gpus all --network host --ipc=host --shm-size=16g \
     -v "$REPO":/workspace -w /workspace -v "$HFC":/hfcache -v "$RES":/results \
     -e HF_HUB_CACHE=/hfcache -e HF_HOME=/hfcache -e VLLM_MXFP4_USE_MARLIN=1 -e TORCH_CUDA_ARCH_LIST=9.0 \
@@ -48,7 +57,7 @@ start_server(){
         --tensor-parallel-size 1 --max-num-seqs $MAXSEQS \
         --max-model-len $MAXLEN --gpu-memory-utilization 0.9 \
         --max-cudagraph-capture-size 2048 --max-num-batched-tokens 8192 \
-        $pc > /results/server.log 2>&1
+        $spec_args $pc > /results/server.log 2>&1
     " >/dev/null
   dlog "waiting for /health ..."
   local t0; t0=$(date +%s)

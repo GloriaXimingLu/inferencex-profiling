@@ -8,9 +8,10 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
 
 ## Summary
 
-- **vs Fireworks (§1):** at matched concurrency, our vLLM serves gpt-oss-120b at **~60–75% of
-  Fireworks' throughput and per-user speed**. Fireworks runs speculative decoding (~67%
-  acceptance); this vLLM configuration does not.
+- **vs Fireworks (§1):** at matched concurrency our vLLM serves gpt-oss-120b at **~60–75% of
+  Fireworks' throughput and per-user speed**. Enabling **speculative decoding (EAGLE3) did *not*
+  close it** — acceptance is only ~15–22% on this random-token workload (vs Fireworks' 67%), so
+  spec ≈ vanilla; it pays off only at high acceptance, i.e. realistic traffic.
 - **Load sweep (§2):** throughput **saturates near concurrency 32–64** (+18% from C=64 to C=256);
   **p99 time-to-first-token rises from 0.4 s to 113 s** over C=1→256; KV cache reaches 100% with
   the first preemptions at C=256; **energy per output token falls 3.8×** (1.48→0.39 J) with batching.
@@ -47,10 +48,24 @@ curve is the throughput-vs-latency trade-off.
 
 (interactivity in tok/s/user; throughput in output tok/s.)
 
-**Why the gap:** Fireworks runs **speculative decoding** (~67% draft-token acceptance), which lifts
-both throughput and per-user speed; our gpt-oss has no draft model. Secondarily, at high load a
-single H200 becomes queue-bound (§2) while Fireworks plateaus. **To close it head-to-head, enable
-an MTP/draft model in vLLM and re-run.**
+**Why the gap — and does speculative decoding close it?** Fireworks runs **speculative decoding**
+(~67% draft acceptance), which lifts both axes. We tested it directly by re-running the sweep with
+**vLLM + EAGLE3** (`nvidia/gpt-oss-120b-Eagle3-v3`, 7 draft tokens) — the **green curve above**.
+**It did *not* close the gap.** On this random-token workload EAGLE3 acceptance is only **~15–22%**
+(vs Fireworks' 67%), so spec decoding ≈ vanilla — in fact slightly *worse* at mid concurrency,
+where the draft/verify overhead isn't recouped and the GPU is already compute-bound:
+
+| C | vanilla tput | +EAGLE3 tput | EAGLE3 acceptance |
+|--:|--:|--:|--:|
+| 1 | 214 | 231 | 19% |
+| 8 | 722 | 660 | 19% |
+| 64 | 1,455 | 1,358 | 16% |
+| 256 | 1,722 | 1,727 | 22% |
+
+So the gap is **not** simply spec-on/off. Speculative decoding only pays off at *high* acceptance,
+which needs **realistic traffic, not random tokens** (the §4 tau-bench workload is where it would
+shine). The residual gap to Fireworks reflects their high acceptance on real-ish traffic plus
+broader stack optimizations. Secondarily, at high load our single H200 is queue-bound (§2).
 
 > *Fair-comparison note:* our harness already matches Fireworks' protocol — exactly OSL output
 > tokens (`ignore_eos`), `conc×2` warmup discarded + `conc×10` measured. Independent cross-check:
@@ -235,8 +250,13 @@ shortfall was **single-GPU memory pressure, not concurrency**. Only **gpt-5-2** 
 its contexts (62k mean, 271k max) exceed gpt-oss's 128k window, so they can't be fully cached at
 any scale. *Fix for long-context serving: more KV memory (more GPUs / tensor-parallel).*
 
-**Finding 3 — two throughput regimes, ~4× apart:** light chat sustains **~1,700–2,100 tok/s** at
-~150–250 ms TTFT; long-context RAG drops to **~450 tok/s** (prefill-bound) at ~280–410 ms.
+The 8×H200 also clears banking's **throughput** bottleneck: at C=64 it sustains **2,300–3,400
+output tok/s** (claude 2,316 / gemini 2,667 / gpt-5-2 2,819 / qwen 3,435) at 160–416 ms p95 TTFT —
+**~5–7× the ~450 tok/s** of the KV-bound C=4 single-H200 run.
+
+**Finding 3 — two throughput regimes, ~4× apart (single H200):** light chat sustains
+**~1,700–2,100 tok/s** at ~150–250 ms TTFT; long-context RAG drops to **~450 tok/s** (prefill-bound)
+at ~280–410 ms — though 8×H200 lifts the latter to multiple thousand tok/s (above).
 
 <details><summary><b>All 16 workloads — realized vs ideal cache hit, throughput, latency (click to expand)</b></summary>
 

@@ -1,0 +1,26 @@
+{
+  "part": "gemini-3-pro__banking_knowledge",
+  "concurrency": 64,
+  "dry_run": false,
+  "requests": 5033,
+  "wall_s": 538.3,
+  "req_per_s": 9.3,
+  "output_tok_per_s": 2667,
+  "ttft_ms": {
+    "p50": 90,
+    "p95": 337
+  },
+  "e2e_ms": {
+    "p50": 1322,
+    "p95": 16697
+  },
+  "scheduler": {
+    "emitted": 5033,
+    "completed": 5033,
+    "total_calls": 5033,
+    "done": true
+  },
+  "server_prefix_cache": {
+    "note": "no recognized prefix-cache counters at /metrics"
+  }
+}
