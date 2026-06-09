@@ -1,0 +1,28 @@
+{
+  "schedule": "/tmp/real_schedule/gpt-5-2__telecom.jsonl",
+  "concurrency": 12,
+  "sims": 150,
+  "calls": 4180,
+  "errors": 0,
+  "wall_s": 434.1,
+  "output_tok_per_s": 1359,
+  "ttft_ms": {
+    "p50": 95,
+    "p95": 140,
+    "p99": 169
+  },
+  "realized_prefix_cache_hit": 0.9405,
+  "spec_acceptance": 0.2309,
+  "m0": {
+    "pc_hits": 42117008.0,
+    "pc_queries": 44629442.0,
+    "spec_accepted": 919878.0,
+    "spec_draft": 4205544.0
+  },
+  "m1": {
+    "pc_hits": 56334912.0,
+    "pc_queries": 59746426.0,
+    "spec_accepted": 1186315.0,
+    "spec_draft": 5359557.0
+  }
+}

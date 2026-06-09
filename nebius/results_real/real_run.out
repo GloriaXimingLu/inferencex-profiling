@@ -1,0 +1,17 @@
+[23:45:13] pull vllm/vllm-openai:v0.22.0
+[23:47:55] download openai/gpt-oss-120b
+[23:59:31] start server: openai/gpt-oss-120b TP=1 max-num-seqs=64 max-model-len=16384 prefix-caching=on spec=nvidia/gpt-oss-120b-Eagle3-v3
+[23:59:32] waiting for /health ...
+[00:03:01] server ready in 209s
+[00:03:01] metric names captured: 379 vllm series
+===== replay claude-opus-4-5__telecom  conc=12 maxsims=150 =====
+Traceback (most recent call last):
+  File "/tmp/real_client.py", line 15, in <module>
+    import aiohttp
+ModuleNotFoundError: No module named 'aiohttp'
+===== replay gpt-5-2__telecom  conc=12 maxsims=150 =====
+Traceback (most recent call last):
+  File "/tmp/real_client.py", line 15, in <module>
+    import aiohttp
+ModuleNotFoundError: No module named 'aiohttp'
+===== REAL RUN COMPLETE =====

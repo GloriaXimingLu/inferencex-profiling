@@ -50,3 +50,5 @@ nebius/results_spec/*.samples
 nebius/results_spec/*.out
 nebius/results_tau_c64_lat/*.samples
 nebius/results_tau_c64_lat/*.out
+
+nebius/real_schedule/

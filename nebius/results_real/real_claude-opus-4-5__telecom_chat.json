@@ -1,0 +1,28 @@
+{
+  "schedule": "/tmp/real_schedule/claude-opus-4-5__telecom.jsonl",
+  "concurrency": 12,
+  "sims": 150,
+  "calls": 4164,
+  "errors": 0,
+  "wall_s": 423.0,
+  "output_tok_per_s": 1186,
+  "ttft_ms": {
+    "p50": 94,
+    "p95": 130,
+    "p99": 159
+  },
+  "realized_prefix_cache_hit": 0.9456,
+  "spec_acceptance": 0.2319,
+  "m0": {
+    "pc_hits": 27883888.0,
+    "pc_queries": 29577001.0,
+    "spec_accepted": 655715.0,
+    "spec_draft": 3066595.0
+  },
+  "m1": {
+    "pc_hits": 42117008.0,
+    "pc_queries": 44629442.0,
+    "spec_accepted": 919878.0,
+    "spec_draft": 4205544.0
+  }
+}

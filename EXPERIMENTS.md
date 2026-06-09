@@ -11,7 +11,8 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
 - **vs Fireworks (§1):** at matched concurrency our vLLM serves gpt-oss-120b at **~60–75% of
   Fireworks' throughput and per-user speed**. Enabling **speculative decoding (EAGLE3) did *not*
   close it** — acceptance is only ~15–22% on this random-token workload (vs Fireworks' 67%), so
-  spec ≈ vanilla; it pays off only at high acceptance, i.e. realistic traffic.
+  spec ≈ vanilla — and **real traffic doesn't fix it** (§5: ~23% acceptance on real tau-bench chat),
+  so the low acceptance is intrinsic to this reasoning model + draft head, not the workload.
 - **Load sweep (§2):** throughput **saturates near concurrency 32–64** (+18% from C=64 to C=256);
   **p99 time-to-first-token rises from 0.4 s to 113 s** over C=1→256; KV cache reaches 100% with
   the first preemptions at C=256; **energy per output token falls 3.8×** (1.48→0.39 J) with batching.
@@ -21,6 +22,9 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
 - **Realistic workload (§4):** realized prefix-cache hit rate **equals the analytical ideal within
   <1%** for light/medium chat; for long-context RAG it was 2–8% lower at C=4 on 1×H200,
   **narrowing to <1.1% for 3 of 4 workloads at C=64 on 8×H200** (16× the KV memory).
+- **Real-token replay (§5):** replaying the *actual* tau-bench prompts **confirms the cache hit
+  (~94%, ≈ synthetic)** but shows **speculative-decode acceptance stays ~23%** (≈ the random-token
+  19%) — the low acceptance is **intrinsic to gpt-oss + EAGLE3**, not the synthetic workload.
 
 ---
 
@@ -62,10 +66,12 @@ where the draft/verify overhead isn't recouped and the GPU is already compute-bo
 | 64 | 1,455 | 1,358 | 16% |
 | 256 | 1,722 | 1,727 | 22% |
 
-So the gap is **not** simply spec-on/off. Speculative decoding only pays off at *high* acceptance,
-which needs **realistic traffic, not random tokens** (the §4 tau-bench workload is where it would
-shine). The residual gap to Fireworks reflects their high acceptance on real-ish traffic plus
-broader stack optimizations. Secondarily, at high load our single H200 is queue-bound (§2).
+So the gap is **not** simply spec-on/off. We then tested whether *realistic traffic* raises
+acceptance — replaying **real tau-bench prompts** (§5). **It does not:** acceptance stays ~23%, so
+the low acceptance is **intrinsic to the gpt-oss-120B + EAGLE3-v3 pairing** (a reasoning model whose
+high-entropy "analysis" tokens are hard for any draft head to predict), *not* a synthetic-workload
+artifact. The residual gap to Fireworks reflects their stronger draft/spec stack plus broader
+optimizations. Secondarily, at high load our single H200 is queue-bound (§2).
 
 > *Fair-comparison note:* our harness already matches Fireworks' protocol — exactly OSL output
 > tokens (`ignore_eos`), `conc×2` warmup discarded + `conc×10` measured. Independent cross-check:
@@ -284,6 +290,42 @@ at ~280–410 ms — though 8×H200 lifts the latter to multiple thousand tok/s 
 \* 2 workloads with extreme outliers (a 65k-token output; a 271k-token input > gpt-oss's 128k
 window) crashed the replay client at the end, so client-side latency/throughput is missing; their
 server-measured hit rate still landed. (Both client bugs are fixed — see end-notes.)
+</details>
+
+---
+
+## 5. Real-token replay — does realistic traffic change the spec / cache story?
+
+§1 (spec) and §4 (cache) both used **synthetic** tokens. To check whether *real* content changes
+the picture, we rebuilt the replay to send **real prompts** — reconstructed from the actual
+tau-bench conversations (agent policy + real dialogue history, from Sierra's public trace bucket) —
+and re-ran with **EAGLE3 spec-decode + prefix caching both ON** (telecom, 2 source models,
+~4,200 calls each, served by gpt-oss-120B).
+
+| telecom (real prompts) | spec accept: random | real (`/v1/completions`) | real (`/v1/chat`) | **cache hit (real)** | ideal |
+|---|--:|--:|--:|--:|--:|
+| claude-opus-4-5 | — | 20.7% | 23.2% | **94.5%** | 97.5% |
+| gpt-5-2 | ~19% | 22.0% | 23.1% | **94.0%** | 97.5% |
+
+**Cache hit — confirmed on real tokens (~94%, within ~3% of ideal).** Identical to the synthetic
+result, exactly as expected: vLLM hashes token-ID *blocks*, so the realized hit rate is structural —
+real vs synthetic tokens with the same prefix structure hit the same. Real tokens add no surprise here.
+
+**Spec acceptance — real tokens do *not* fix it (~23%).** Acceptance barely moved across *three*
+input conditions (random 19% → real-completion 21% → real-chat 23%). Since the input distribution
+hardly matters, the low acceptance is **intrinsic to the gpt-oss-120B + EAGLE3-v3 pairing**, not a
+synthetic-workload artifact — most likely because gpt-oss is a **reasoning model** whose
+high-entropy "analysis" tokens are inherently hard for a draft head to predict. **This revises the
+§1 hypothesis** that realistic traffic would close the spec gap: it won't, on this model + draft head.
+
+<details><summary>Method &amp; caveat</summary>
+
+Real prompts are reconstructed coherent agent text (policy as system, real conversation as history),
+re-tokenized by gpt-oss's tokenizer — *not* byte-identical to what the source model saw (different
+tokenizer + tool-schema rendering). The chat-endpoint run controls for chat-vs-completion formatting;
+the cross-condition consistency (19 / 21 / 23%) makes the conclusion robust. Banking (long-context,
+real prompts reach ~38k mean / ~196k max tokens) is an 8×H200 follow-up. Tooling: `extract_real.py`
+(trace → real-prompt schedule), `real_client.py` (replay + metric scrape), `real_run.sh`.
 </details>
 
 ---
