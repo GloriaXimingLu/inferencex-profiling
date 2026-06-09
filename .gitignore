@@ -52,3 +52,7 @@ nebius/results_tau_c64_lat/*.samples
 nebius/results_tau_c64_lat/*.out
 
 nebius/real_schedule/
+
+nebius/results_specns*/*.samples
+nebius/results_specns*/*.serverlog
+nebius/results_specns*/*.client.log

@@ -12,7 +12,8 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
   Fireworks' throughput and per-user speed**. Enabling **speculative decoding (EAGLE3) did *not*
   close it** — acceptance is only ~15–22% on this random-token workload (vs Fireworks' 67%), so
   spec ≈ vanilla. But per-position analysis (§5) shows the **23% is a `num_spec=7` averaging
-  artifact** — **first-token acceptance is ~67%** (≈Fireworks); the draft is fine, `num_spec` is too deep.
+  artifact** — first-token acceptance is ~67% (≈Fireworks); validated by a `num_spec` sweep:
+  **`num_spec=1` beats vanilla +10–24% at every load** (the default `num_spec=7` was the *worst*).
 - **Load sweep (§2):** throughput **saturates near concurrency 32–64** (+18% from C=64 to C=256);
   **p99 time-to-first-token rises from 0.4 s to 113 s** over C=1→256; KV cache reaches 100% with
   the first preemptions at C=256; **energy per output token falls 3.8×** (1.48→0.39 J) with batching.
@@ -25,7 +26,8 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
 - **Real-token replay (§5):** replaying the *actual* tau-bench prompts **confirms the cache hit
   (~94%, ≈ synthetic)**. Spec acceptance stays ~23% — but per-position analysis shows that's a
   **`num_spec=7` averaging artifact: first-token acceptance is ~67%** (≈Fireworks), so the draft is
-  fine; the fix is a **shallower `num_spec`**, not the workload.
+  fine — and a `num_spec` sweep **validated the fix**: `num_spec=1` is optimal (**+10–24% over
+  vanilla** at every load), while the default `num_spec=7` was the worst (below vanilla mid-load).
 
 ---
 
@@ -336,9 +338,25 @@ conflated:
   average. At the same metric we're comparable.
 - **Config:** `num_speculative_tokens=7` is **too deep** — we pay 7 draft passes per step for only
   ~1.3–1.5 accepted tokens (acceptance *length*), so the draft overhead isn't recouped, especially
-  under batching. Positions 0–2 already give ~87% of the accepts, so **`num_speculative_tokens≈3`
-  should keep most of the benefit at ~43% of the draft cost** — the per-position evidence above makes
-  this case directly; a `num_spec` throughput sweep would be the final confirmation.
+  under batching. Positions 0–2 give ~87% of the accepts, so a **shallower draft should win** — which
+  we then **validated directly** by re-running the §1 sweep at `num_spec ∈ {1, 3, 7}`:
+
+![num_spec sweep — num_spec=1 wins everywhere; the default 7 is worst](nebius/results_specns1/num_spec_sweep.png)
+
+| C | vanilla | **num_spec=1** | num_spec=3 | num_spec=7 (default) |
+|--:|--:|--:|--:|--:|
+| 1 | 214 | **265 (62%)** | 249 (31%) | 231 (19%) |
+| 8 | 722 | **828 (68%)** | 785 (37%) | 660 (19%) |
+| 32 | 1,212 | **1,356 (65%)** | 1,288 (36%) | 1,140 (17%) |
+| 128 | 1,647 | **1,870 (68%)** | 1,805 (40%) | 1,534 (19%) |
+| 256 | 1,722 | **1,946 (64%)** | 1,929 (40%) | 1,727 (22%) |
+
+**Throughput-validated: `num_spec=1` is optimal** — it beats vanilla by **+10–24% at every load**, and
+its acceptance *rate* is **62–70%** (≈ Fireworks' 67%, since with 1 draft token the rate *is* the
+first-token acceptance — a direct empirical confirmation of the per-position curve). `num_spec=3` is a
+close second; the **default `num_spec=7` is the worst** — *below vanilla* at C=8–32, because the deep
+draft's overhead isn't recouped. So spec decoding **does** help on this workload — just at
+`num_spec=1–2`, not the deep default we first used.
 
 The reasoning-model effect is real but **secondary** — it shows up as a *steeper decay* (pos1 36%,
 pos2 21%), not a weak first token. So the earlier "intrinsically low / reasoning model" read was

@@ -1,0 +1,35 @@
+[12:53:56] pull vllm/vllm-openai:v0.22.0
+[12:56:30] download openai/gpt-oss-120b
+[13:07:56] start server: openai/gpt-oss-120b TP=1 max-num-seqs=256 max-model-len=10240 prefix-caching=off spec=nvidia/gpt-oss-120b-Eagle3-v3
+[13:07:57] waiting for /health ...
+[13:11:44] server ready in 227s
+[13:11:44] metric names captured: 371 vllm series
+[13:11:44] RUN sweep_c1 : conc=1 measured=10 warmup=2 detailed=no
+[13:12:40] RUN sweep_c1 DONE rc=0 wall=56.3s
+[13:12:40] RUN sweep_c2 : conc=2 measured=20 warmup=4 detailed=no
+[13:13:43] RUN sweep_c2 DONE rc=0 wall=62.1s
+[13:13:43] RUN sweep_c4 : conc=4 measured=40 warmup=8 detailed=no
+[13:15:09] RUN sweep_c4 DONE rc=0 wall=86.5s
+[13:15:09] RUN sweep_c8 : conc=8 measured=80 warmup=16 detailed=no
+[13:17:08] RUN sweep_c8 DONE rc=0 wall=119.2s
+[13:17:08] RUN sweep_c16 : conc=16 measured=160 warmup=32 detailed=no
+[13:20:02] RUN sweep_c16 DONE rc=0 wall=174.1s
+[13:20:02] RUN sweep_c32 : conc=32 measured=320 warmup=64 detailed=no
+[13:24:45] RUN sweep_c32 DONE rc=0 wall=282.5s
+[13:24:45] RUN sweep_c64 : conc=64 measured=640 warmup=128 detailed=no
+[13:32:22] RUN sweep_c64 DONE rc=0 wall=457.2s
+[13:32:22] RUN sweep_c128 : conc=128 measured=1280 warmup=256 detailed=no
+[13:45:11] RUN sweep_c128 DONE rc=0 wall=768.7s
+[13:45:11] RUN sweep_c256 : conc=256 measured=2560 warmup=512 detailed=no
+[14:09:39] RUN sweep_c256 DONE rc=0 wall=1468.3s
+===== SWEEP COMPLETE =====
+label       conc  num_prompts  warmups  wall_s  t0                    t1                    detailed
+sweep_c1    1     10           2        56.3    1781010704.547755354  1781010760.886878461  no
+sweep_c2    2     20           4        62.1    1781010760.913746084  1781010823.033971247  no
+sweep_c4    4     40           8        86.5    1781010823.058052169  1781010909.553714709  no
+sweep_c8    8     80           16       119.2   1781010909.578401141  1781011028.826398306  no
+sweep_c16   16    160          32       174.1   1781011028.852088674  1781011202.947589247  no
+sweep_c32   32    320          64       282.5   1781011202.972897306  1781011485.498946910  no
+sweep_c64   64    640          128      457.2   1781011485.523689512  1781011942.722639529  no
+sweep_c128  128   1280         256      768.7   1781011942.748506111  1781012711.446583199  no
+sweep_c256  256   2560         512      1468.3  1781012711.472263026  1781014179.803836753  no
