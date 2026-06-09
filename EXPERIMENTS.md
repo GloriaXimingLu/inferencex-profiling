@@ -11,8 +11,8 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
 - **vs Fireworks (§1):** at matched concurrency our vLLM serves gpt-oss-120b at **~60–75% of
   Fireworks' throughput and per-user speed**. Enabling **speculative decoding (EAGLE3) did *not*
   close it** — acceptance is only ~15–22% on this random-token workload (vs Fireworks' 67%), so
-  spec ≈ vanilla — and **real traffic doesn't fix it** (§5: ~23% acceptance on real tau-bench chat),
-  so the low acceptance is intrinsic to this reasoning model + draft head, not the workload.
+  spec ≈ vanilla. But per-position analysis (§5) shows the **23% is a `num_spec=7` averaging
+  artifact** — **first-token acceptance is ~67%** (≈Fireworks); the draft is fine, `num_spec` is too deep.
 - **Load sweep (§2):** throughput **saturates near concurrency 32–64** (+18% from C=64 to C=256);
   **p99 time-to-first-token rises from 0.4 s to 113 s** over C=1→256; KV cache reaches 100% with
   the first preemptions at C=256; **energy per output token falls 3.8×** (1.48→0.39 J) with batching.
@@ -23,8 +23,9 @@ a realistic agent workload. Plots are embedded; raw data + re-runnable scripts i
   <1%** for light/medium chat; for long-context RAG it was 2–8% lower at C=4 on 1×H200,
   **narrowing to <1.1% for 3 of 4 workloads at C=64 on 8×H200** (16× the KV memory).
 - **Real-token replay (§5):** replaying the *actual* tau-bench prompts **confirms the cache hit
-  (~94%, ≈ synthetic)** but shows **speculative-decode acceptance stays ~23%** (≈ the random-token
-  19%) — the low acceptance is **intrinsic to gpt-oss + EAGLE3**, not the synthetic workload.
+  (~94%, ≈ synthetic)**. Spec acceptance stays ~23% — but per-position analysis shows that's a
+  **`num_spec=7` averaging artifact: first-token acceptance is ~67%** (≈Fireworks), so the draft is
+  fine; the fix is a **shallower `num_spec`**, not the workload.
 
 ---
 
@@ -66,12 +67,13 @@ where the draft/verify overhead isn't recouped and the GPU is already compute-bo
 | 64 | 1,455 | 1,358 | 16% |
 | 256 | 1,722 | 1,727 | 22% |
 
-So the gap is **not** simply spec-on/off. We then tested whether *realistic traffic* raises
-acceptance — replaying **real tau-bench prompts** (§5). **It does not:** acceptance stays ~23%, so
-the low acceptance is **intrinsic to the gpt-oss-120B + EAGLE3-v3 pairing** (a reasoning model whose
-high-entropy "analysis" tokens are hard for any draft head to predict), *not* a synthetic-workload
-artifact. The residual gap to Fireworks reflects their stronger draft/spec stack plus broader
-optimizations. Secondarily, at high load our single H200 is queue-bound (§2).
+So the gap is **not** simply spec-on/off. Two follow-ups (§5) explain what's going on. (1) Real
+traffic doesn't raise the ~23% headline acceptance — but (2) decomposing it **by draft position**
+shows the headline is misleading: **first-token acceptance is ~67%, matching Fireworks** — the
+draft head is fine. The low average is a `num_speculative_tokens=7` artifact (deep positions rarely
+hit but count in the denominator), so the real fixes are a **shallower `num_spec`** and the draft
+overhead under batching — not the workload, and not a weak draft. Secondarily, at high load our
+single H200 is queue-bound (§2).
 
 > *Fair-comparison note:* our harness already matches Fireworks' protocol — exactly OSL output
 > tokens (`ignore_eos`), `conc×2` warmup discarded + `conc×10` measured. Independent cross-check:
@@ -311,12 +313,35 @@ and re-ran with **EAGLE3 spec-decode + prefix caching both ON** (telecom, 2 sour
 result, exactly as expected: vLLM hashes token-ID *blocks*, so the realized hit rate is structural —
 real vs synthetic tokens with the same prefix structure hit the same. Real tokens add no surprise here.
 
-**Spec acceptance — real tokens do *not* fix it (~23%).** Acceptance barely moved across *three*
-input conditions (random 19% → real-completion 21% → real-chat 23%). Since the input distribution
-hardly matters, the low acceptance is **intrinsic to the gpt-oss-120B + EAGLE3-v3 pairing**, not a
-synthetic-workload artifact — most likely because gpt-oss is a **reasoning model** whose
-high-entropy "analysis" tokens are inherently hard for a draft head to predict. **This revises the
-§1 hypothesis** that realistic traffic would close the spec gap: it won't, on this model + draft head.
+**Spec acceptance — real tokens don't move it (~23%), and that headline number is misleading.**
+Acceptance barely changed across three input conditions (random 19% → real-completion 21% →
+real-chat 23%), so the input isn't the driver. Decomposing the headline by **draft position**
+(we captured `spec_decode_num_accepted_tokens_per_pos`) shows what's really going on:
+
+![EAGLE3 per-position acceptance — first token ~60–69%, decaying steeply](nebius/results_spec/spec_acceptance_per_pos.png)
+
+| draft position | C=1 | C=64 | C=256 |
+|---|--:|--:|--:|
+| **pos 0 (first token)** | **59.7%** | 54.4% | **68.7%** |
+| pos 1 | 36.1% | 30.0% | 45.6% |
+| pos 2 | 21.1% | 12.8% | 18.5% |
+| pos 3–6 | ≤9.8% | ≤6.5% | ≤9.2% |
+| **cumulative capture by pos 2** | 87.5% | 88.5% | 87.2% |
+
+**First-token acceptance is ~60–69% — essentially Fireworks' reported "67%." The EAGLE3 draft head
+is *not* weak.** The "23%" is `accepted/draft` **averaged over all 7 draft positions**, and positions
+3–6 (which hit ≤10%) still count fully in the denominator, crushing the average. Two things were
+conflated:
+- **Metric mismatch:** Fireworks' "67%" matches our *first-token* acceptance; our 23% is the 7-way
+  average. At the same metric we're comparable.
+- **Config:** `num_speculative_tokens=7` is **too deep** — we pay 7 draft passes per step for only
+  ~1.3–1.5 accepted tokens (acceptance *length*), so the draft overhead isn't recouped, especially
+  under batching. Positions 0–2 already give ~87% of the accepts, so **`num_speculative_tokens≈3`
+  should keep most of the benefit at ~43% of the draft cost.** *(num_spec sweep validating this — results below.)*
+
+The reasoning-model effect is real but **secondary** — it shows up as a *steeper decay* (pos1 36%,
+pos2 21%), not a weak first token. So the earlier "intrinsically low / reasoning model" read was
+half-wrong: the draft quality is fine; the culprits were a too-deep `num_spec` and a metric mismatch.
 
 <details><summary>Method &amp; caveat</summary>
 
