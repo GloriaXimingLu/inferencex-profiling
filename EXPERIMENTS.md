@@ -337,7 +337,8 @@ conflated:
 - **Config:** `num_speculative_tokens=7` is **too deep** — we pay 7 draft passes per step for only
   ~1.3–1.5 accepted tokens (acceptance *length*), so the draft overhead isn't recouped, especially
   under batching. Positions 0–2 already give ~87% of the accepts, so **`num_speculative_tokens≈3`
-  should keep most of the benefit at ~43% of the draft cost.** *(num_spec sweep validating this — results below.)*
+  should keep most of the benefit at ~43% of the draft cost** — the per-position evidence above makes
+  this case directly; a `num_spec` throughput sweep would be the final confirmation.
 
 The reasoning-model effect is real but **secondary** — it shows up as a *steeper decay* (pos1 36%,
 pos2 21%), not a weak first token. So the earlier "intrinsically low / reasoning model" read was
