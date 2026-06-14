@@ -33,8 +33,8 @@ ax.annotate("", xy=(1, 1.13), xytext=(0, 1.91),
             arrowprops=dict(arrowstyle="->", color=RED, lw=2))
 ax.text(0.5, 1.62, "−43%", ha="center", color=RED, fontsize=20, fontweight="bold")
 ax.set_ylabel("Cost per 1M output tokens (US$)")
-ax.set_title("Same model, same GPU — 43% cheaper to serve",
-             fontsize=15, fontweight="bold", pad=12)
+ax.set_title("Baseline vs. auto-tuned configuration",
+             fontsize=14.5, fontweight="bold", pad=12)
 ax.set_ylim(0, 2.15); ax.grid(axis="y", color="#eef1f4", zorder=0)
 for s in ("top", "right"):
     ax.spines[s].set_visible(False)
@@ -57,7 +57,7 @@ ax.axhline(0, color=INK, lw=1)
 ax.set_xticks(x); ax.set_xticklabels(labels, fontsize=11)
 ax.set_ylabel("Throughput change vs. previous setup")
 ax.set_ylim(-34, 112)
-ax.set_title("Real agent traffic: big throughput gains under heavy load",
+ax.set_title("tau-bench replay: throughput change vs. baseline",
              fontsize=14.5, fontweight="bold", pad=12)
 ax.text(1.5, 96, "HEAVY LOAD  (many users at once)", ha="center", color=BLUE,
         fontsize=11.5, fontweight="bold")
@@ -82,18 +82,13 @@ def _curve(d, color, label, ls="-", mk="o", lw=2.6):
     cs = sorted(d)
     ax.plot([d[c][0] for c in cs], [d[c][1] for c in cs], ls, marker=mk,
             color=color, label=label, lw=lw, markersize=5, zorder=3)
-_curve(fw, "#e8833a", "Best commercial stack (reference)", ls="--")
-_curve(ceil, GREEN, "Our auto-tuned config")
-_curve(base, GRAY, "Our previous setup")
-ax.annotate("BETTER", xy=(232, 2280), fontsize=12.5, fontweight="bold", color=INK)
-ax.annotate("", xy=(312, 2660), xytext=(232, 2360),
-            arrowprops=dict(arrowstyle="->", color=INK, lw=2.2))
-ax.text(11, 2730, "auto-tuned reaches\nbest-in-class here", fontsize=10, color=GREEN,
-        fontweight="bold", ha="left", va="bottom")
-ax.set_xlabel("Per-user speed   (tokens/sec for one user  →  higher = snappier)")
-ax.set_ylabel("Total throughput   (tokens/sec  →  higher = cheaper)")
-ax.set_title("More throughput at every speed — reaching best-in-class under load",
-             fontsize=14, fontweight="bold", pad=12)
+_curve(fw, "#e8833a", "Commercial reference (Fireworks)", ls="--")
+_curve(ceil, GREEN, "Auto-tuned config")
+_curve(base, GRAY, "Baseline (previous config)")
+ax.set_xlabel("Per-user output speed  (tokens/sec)")
+ax.set_ylabel("Total throughput  (tokens/sec)")
+ax.set_title("Total throughput vs. per-user speed, concurrency 1–256",
+             fontsize=14.5, fontweight="bold", pad=12)
 ax.legend(loc="center right", fontsize=11, frameon=False)
 ax.set_xlim(0, 345); ax.set_ylim(0, 2980)
 ax.grid(color="#eef1f4", zorder=0)

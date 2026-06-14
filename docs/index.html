@@ -3,10 +3,10 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Auto-Tuning Our LLM Server — Cutting Serving Cost</title>
-<meta name="description" content="How an evolutionary AI agent cut our LLM serving cost by 43% — same model, same GPU — and validated the win on real agent traffic.">
-<meta property="og:title" content="An AI agent that makes our LLM server 43% cheaper to run">
-<meta property="og:description" content="Same model, same GPU: an evolutionary agent found a serving config that produces far more tokens per dollar, validated on realistic agent traffic.">
+<title>vLLM Serving-Configuration Optimization — GPT-OSS-120B</title>
+<meta name="description" content="Measured results from auto-tuning the vLLM launch configuration for GPT-OSS-120B on one NVIDIA H200: cost per token, throughput, and latency on a synthetic benchmark and replayed tau-bench traffic.">
+<meta property="og:title" content="vLLM serving-configuration optimization for GPT-OSS-120B">
+<meta property="og:description" content="Measured cost, throughput, and latency from auto-tuning the vLLM launch configuration on one NVIDIA H200.">
 <meta property="og:type" content="website">
 <meta property="og:image" content="https://gloriaximinglu.github.io/inferencex-profiling/assets/cost_compare.png">
 <meta name="twitter:card" content="summary_large_image">
@@ -22,8 +22,8 @@
        color:var(--ink);line-height:1.62;background:var(--bg);-webkit-font-smoothing:antialiased}
   .wrap{max-width:820px;margin:0 auto;padding:0 24px}
   h1,h2,h3{line-height:1.25;font-weight:700}
-  h2{font-size:1.6rem;margin:0 0 .2em;letter-spacing:-.01em}
-  h3{font-size:1.14rem;margin:1.7em 0 .3em}
+  h2{font-size:1.55rem;margin:0 0 .2em;letter-spacing:-.01em}
+  h3{font-size:1.12rem;margin:1.7em 0 .3em}
   p{margin:.7em 0}
   a{color:var(--accent)}
   code{background:var(--softer);padding:1px 6px;border-radius:4px;font-size:.86em;font-family:ui-monospace,Menlo,Consolas,monospace}
@@ -33,7 +33,6 @@
   details.tech ul{font-size:.93rem;color:var(--muted);padding-left:20px;margin:8px 0 14px}
   details.tech li{margin:.4em 0}
 
-  /* nav */
   nav.top{position:sticky;top:0;z-index:20;background:rgba(255,255,255,.94);
           backdrop-filter:blur(8px);border-bottom:1px solid var(--line)}
   nav.top .wrap{display:flex;align-items:center;gap:20px;padding:12px 24px;max-width:860px;
@@ -44,185 +43,197 @@
   nav.top .hide-sm{display:inline}
   @media(max-width:600px){nav.top .hide-sm{display:none}}
 
-  /* hero */
-  .hero{background:linear-gradient(160deg,#16263a 0%,#1f3b54 100%);color:#fff;padding:60px 0 50px}
+  .hero{background:linear-gradient(160deg,#16263a 0%,#1f3b54 100%);color:#fff;padding:56px 0 46px}
   .hero .wrap{max-width:860px}
-  .eyebrow{text-transform:uppercase;letter-spacing:.14em;font-size:.78rem;color:#8fd3c4;font-weight:700;margin:0 0 14px}
-  .hero h1{font-size:2.5rem;margin:0 0 .35em;letter-spacing:-.02em}
-  .hero .lede{font-size:1.18rem;color:#d6e0ea;max-width:680px;margin:0}
-  .stats{display:flex;gap:16px;margin-top:34px;flex-wrap:wrap}
+  .eyebrow{text-transform:uppercase;letter-spacing:.13em;font-size:.77rem;color:#8fd3c4;font-weight:700;margin:0 0 14px}
+  .hero h1{font-size:2.2rem;margin:0 0 .4em;letter-spacing:-.015em}
+  .hero .lede{font-size:1.08rem;color:#d6e0ea;max-width:710px;margin:0}
+  .stats{display:flex;gap:16px;margin-top:32px;flex-wrap:wrap}
   .stat{background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:12px;
-        padding:16px 20px;min-width:150px;flex:1}
-  .stat .num{font-size:1.9rem;font-weight:800;color:#fff}
+        padding:15px 18px;min-width:150px;flex:1}
+  .stat .num{font-size:1.7rem;font-weight:800;color:#fff}
   .stat .num.green{color:#5fe0a8}
-  .stat .lbl{font-size:.85rem;color:#aebccb;margin-top:2px}
+  .stat .lbl{font-size:.83rem;color:#aebccb;margin-top:3px;line-height:1.4}
 
-  /* sections */
-  section{padding:46px 0;border-bottom:1px solid var(--line)}
+  section{padding:44px 0;border-bottom:1px solid var(--line)}
   .num-badge{display:inline-block;background:var(--accent);color:#fff;font-size:.8rem;font-weight:700;
              border-radius:6px;padding:2px 9px;margin-right:8px;vertical-align:middle}
   .tldr{background:var(--soft);border-radius:14px;padding:8px 28px 18px}
   .tldr ul{padding-left:20px}
-  .tldr li{margin:.55em 0}
+  .tldr li{margin:.6em 0}
 
-  .plain{background:#f0f8f4;border-left:4px solid var(--green);border-radius:0 10px 10px 0;
-         padding:14px 18px;margin:18px 0;font-size:.97rem}
-  .plain b{color:var(--green)}
-
-  figure{margin:26px 0;background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center}
+  figure{margin:24px 0;background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:18px;text-align:center}
   figure img{max-width:100%;height:auto;border-radius:6px}
-  figcaption{font-size:.9rem;color:var(--muted);margin-top:12px;text-align:left}
+  figcaption{font-size:.89rem;color:var(--muted);margin-top:12px;text-align:left}
   figcaption b{color:var(--ink)}
 
-  .loop{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:24px 0}
-  .loop .step{flex:1;min-width:130px;background:var(--soft);border:1px solid var(--line);border-radius:12px;
-              padding:14px 16px;text-align:center}
-  .loop .step .t{font-weight:700;font-size:.98rem}
-  .loop .step .d{font-size:.84rem;color:var(--muted);margin-top:3px}
+  .loop{display:flex;align-items:stretch;gap:0;flex-wrap:wrap;margin:22px 0}
+  .loop .step{flex:1;min-width:128px;background:var(--soft);border:1px solid var(--line);border-radius:12px;
+              padding:13px 15px;text-align:center}
+  .loop .step .t{font-weight:700;font-size:.96rem}
+  .loop .step .d{font-size:.83rem;color:var(--muted);margin-top:3px}
   .loop .arrow{display:flex;align-items:center;color:var(--faint);font-size:1.4rem;padding:0 8px}
 
-  /* recommendation cards */
-  .rec{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin:22px 0 6px}
-  .rec .card{border:1px solid var(--line);border-radius:12px;padding:18px 20px;background:#fff}
-  .rec .card .h{font-weight:700;color:var(--accent);font-size:1.02rem}
-  .rec .card .b{font-size:.95rem;color:var(--muted);margin-top:4px}
-  @media(max-width:600px){.rec{grid-template-columns:1fr}}
+  table{width:100%;border-collapse:collapse;margin:18px 0;font-size:.92rem}
+  th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
+  td .cfg{font-weight:700}
+  td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
 
   dl.gloss{display:grid;grid-template-columns:200px 1fr;gap:0 22px}
   dl.gloss dt{font-weight:700;padding:11px 0;border-top:1px solid var(--line)}
   dl.gloss dd{margin:0;padding:11px 0;border-top:1px solid var(--line);color:var(--muted)}
   @media(max-width:600px){dl.gloss{grid-template-columns:1fr}dl.gloss dd{border-top:none;padding-top:0}}
 
-  footer{background:var(--softer);color:var(--muted);font-size:.88rem;padding:34px 0}
+  footer{background:var(--softer);color:var(--muted);font-size:.87rem;padding:32px 0}
   footer .wrap{max-width:860px}
-  @media(max-width:620px){.hero h1{font-size:1.9rem}}
+  @media(max-width:620px){.hero h1{font-size:1.7rem}}
 </style>
 </head>
 <body>
 
 <nav class="top">
   <div class="wrap">
-    <span class="brand">LLM Serving Efficiency</span>
-    <a href="#tldr">Summary</a>
-    <a href="#problem" class="hide-sm">Problem</a>
-    <a href="#approach" class="hide-sm">Approach</a>
+    <span class="brand">vLLM Config Optimization</span>
+    <a href="#summary">Summary</a>
+    <a href="#setup" class="hide-sm">Setup</a>
+    <a href="#method" class="hide-sm">Method</a>
     <a href="#results">Results</a>
-    <a href="#bottomline">Bottom line</a>
+    <a href="#configs">Configurations</a>
   </div>
 </nav>
 
 <header class="hero">
   <div class="wrap">
-    <p class="eyebrow">Inference Efficiency · Internal Report</p>
-    <h1>An AI agent that makes our LLM server 43% cheaper to run</h1>
-    <p class="lede">We taught an evolutionary agent to tune how we serve our large language model. Same model, same GPU — it discovered a configuration that serves far more tokens per dollar, and the win holds up on realistic production-style traffic.</p>
+    <p class="eyebrow">Internal Technical Report · Inference Efficiency · June 2026</p>
+    <h1>Auto-tuning the vLLM serving configuration for GPT-OSS-120B</h1>
+    <p class="lede">An evolutionary search agent (OpenEvolve) tuned the vLLM launch configuration for GPT-OSS-120B on a single NVIDIA H200, with the objective of minimizing cost per output token. This report presents the measured results — cost, throughput, and latency — on a synthetic benchmark and on replayed τ-bench traffic. The model weights were not modified.</p>
     <div class="stats">
-      <div class="stat"><div class="num green">−43%</div><div class="lbl">cost per token<br>(serving the same model)</div></div>
-      <div class="stat"><div class="num green">+9 to +70%</div><div class="lbl">throughput under heavy load<br>(real agent traffic)</div></div>
-      <div class="stat"><div class="num">0</div><div class="lbl">changes to the model itself<br>(no quality risk)</div></div>
+      <div class="stat"><div class="num green">−43%</div><div class="lbl">cost per output token<br>(synthetic benchmark)</div></div>
+      <div class="stat"><div class="num green">+9 to +70%</div><div class="lbl">throughput vs. baseline<br>(τ-bench, concurrency 64)</div></div>
+      <div class="stat"><div class="num">unchanged</div><div class="lbl">model weights<br>(launch config only)</div></div>
     </div>
   </div>
 </header>
 
-<section id="tldr">
+<section id="summary">
   <div class="wrap">
-    <h2>The short version</h2>
+    <h2>Summary of findings</h2>
     <div class="tldr">
       <ul>
-        <li><b>The cost of serving a large model is basically GPU time.</b> The software that runs the model has dozens of low-level settings that can swing cost by ~2×, but they interact in non-obvious ways and are tedious to tune by hand.</li>
-        <li><b>We pointed an AI agent at the problem.</b> It proposes a server configuration, we measure the true cost on a real GPU, and it evolves better configurations over many rounds — automatically.</li>
-        <li><b>It found a setup that serves the same model on the same GPU at 43% lower cost per token</b> (about 1.8× more tokens per second) — and discovered it on its own.</li>
-        <li><b>We validated it on real workloads.</b> Replaying actual multi-step agent conversations, throughput rose <b>+9 to +70%</b> when the system is busy (where cost matters most), and was roughly flat when lightly loaded.</li>
+        <li>On the synthetic benchmark (8k-token input, 1k-token output), the best configuration found reduced cost per output token from <b>$1.83 to $1.05 per 1M tokens (−43%)</b>; output throughput rose from <b>1,617 to 2,943 tokens/sec (+82%)</b>.</li>
+        <li>Across concurrency levels 1–256, the auto-tuned configuration produced higher throughput than the baseline at <b>8 of 9 levels</b> (exception: concurrency 4). At concurrency 128 and 256 it exceeded a commercial reference (Fireworks); at intermediate concurrency the commercial reference was higher.</li>
+        <li>On replayed τ-bench agent traffic at concurrency 64, throughput changed by <b>+9%, +63%, +69%, +70%</b> across four source workloads. At concurrency 4 it changed by <b>−18%, +3%, −12%</b> across three workloads.</li>
+        <li>The throughput-maximizing configuration's p99 time-to-first-token was <b>≈42 s</b> at concurrency 256. A separate latency-constrained configuration produced <b>+16% throughput</b> over the baseline while meeting a p99 time-to-first-token limit of 5,000 ms (measured 4,873 ms).</li>
+        <li>The search modified <b>only the vLLM launch configuration</b>; model weights were unchanged.</li>
       </ul>
     </div>
   </div>
 </section>
 
-<section id="problem">
+<section id="setup">
   <div class="wrap">
-    <h2><span class="num-badge">1</span>The problem: serving cost is GPU cost</h2>
-    <p>We run a 120-billion-parameter open model (<b>GPT-OSS-120B</b>) on a single high-end GPU (an <b>NVIDIA H200</b>), using <b>vLLM</b> — the open-source engine that actually serves the model to users. Our bill is essentially GPU-hours: the more user output we produce per GPU-second, the lower our cost per token.</p>
-    <p>The catch: vLLM has <b>dozens of launch settings</b> — how many requests to batch together, how to lay out memory, which math routines to use, and so on. They interact in surprising ways and can swing throughput <b>2× or more</b>. Finding the best combination by hand is slow and easy to get wrong.</p>
-    <div class="plain"><b>In plain terms:</b> it's like tuning an engine. The same car (model) and same fuel (GPU) go much further on the right settings — but there are too many dials to try by hand, and the best combination isn't obvious.</div>
-    <p><b>The goal:</b> find the configuration that serves the most tokens per GPU-second — the cheapest — without making the service too slow for users.</p>
+    <h2><span class="num-badge">1</span>Setup</h2>
+    <ul>
+      <li><b>Model:</b> GPT-OSS-120B (120B parameters, MXFP4 weights).</li>
+      <li><b>Hardware:</b> one NVIDIA H200 GPU.</li>
+      <li><b>Serving engine:</b> vLLM v0.22 — the open-source engine that runs the model and answers requests. Its launch configuration (the settings used at startup) is what was tuned.</li>
+      <li><b>Cost metric:</b> GPU time per output token, reported as US$ per 1M output tokens at the benchmark's cloud H200 rate. (The percentage change is independent of the rate.)</li>
+      <li><b>Objective:</b> minimize cost per output token, subject to latency limits.</li>
+    </ul>
+    <p>The launch configuration exposes on the order of 15 settings — batch sizes, key/value-cache numeric format, attention and mixture-of-experts compute kernels, and speculative-decoding depth — that affect throughput and latency. These were the search space.</p>
   </div>
 </section>
 
-<section id="approach">
+<section id="method">
   <div class="wrap">
-    <h2><span class="num-badge">2</span>What we did: let an agent search for us</h2>
-    <p>We used <b>OpenEvolve</b>, an evolutionary AI agent. It runs guided trial-and-error: propose a server configuration, launch the real model on a real GPU and measure the true cost per token, then learn from each result to propose better configurations — over many rounds.</p>
+    <h2><span class="num-badge">2</span>Method</h2>
+    <p>OpenEvolve is an evolutionary search agent. Each round proceeds as follows:</p>
     <div class="loop">
-      <div class="step"><div class="t">1 · Propose</div><div class="d">agent suggests a server config</div></div>
+      <div class="step"><div class="t">1 · Propose</div><div class="d">agent proposes a launch configuration</div></div>
       <div class="arrow">→</div>
-      <div class="step"><div class="t">2 · Run</div><div class="d">launch the real model on a real GPU</div></div>
+      <div class="step"><div class="t">2 · Run</div><div class="d">configuration launched on a live H200</div></div>
       <div class="arrow">→</div>
-      <div class="step"><div class="t">3 · Measure</div><div class="d">true cost per token + responsiveness</div></div>
+      <div class="step"><div class="t">3 · Measure</div><div class="d">cost per token + latency under load</div></div>
       <div class="arrow">→</div>
-      <div class="step"><div class="t">4 · Evolve</div><div class="d">keep the cheapest, try variations</div></div>
+      <div class="step"><div class="t">4 · Evolve</div><div class="d">results fed back; new configs proposed</div></div>
     </div>
-    <p>Two things make this safe and trustworthy:</p>
     <ul>
-      <li><b>It only changes how the model is served — never the model itself.</b> Output quality is untouched, so the savings carry no quality risk.</li>
-      <li><b>It's scored on real measurements, not estimates.</b> Every configuration runs on an actual GPU under load, so a "win" is a real win.</li>
+      <li>Each candidate was scored on <b>measured</b> cost per token from a live GPU under load, not on estimates.</li>
+      <li>The search modified only launch settings (batch sizes, cache format, kernel selection, speculative-decoding depth). Model weights were unchanged.</li>
+      <li>The reported configuration was produced by the search; it was not specified manually.</li>
     </ul>
-    <p>Notably, the agent <b>discovered</b> the winning configuration on its own — we did not hand it the answer.</p>
   </div>
 </section>
 
 <section id="results">
   <div class="wrap">
-    <h2><span class="num-badge">3</span>The results</h2>
+    <h2><span class="num-badge">3</span>Results</h2>
 
-    <h3>3.1 — 43% lower cost per token</h3>
-    <p>The configuration the agent found serves the same model on the same GPU at <b>43% lower cost per token</b> — equivalently, about <b>1.8× more tokens per GPU-second</b>. The savings came from three changes the agent chose: a faster math routine for this model, a more compact memory format, and larger processing batches.</p>
+    <h3>3.1 — Cost per token (synthetic benchmark)</h3>
+    <p>On the synthetic benchmark (8k-token input, 1k-token output), the configuration found reduced cost per output token from <b>$1.83 to $1.05 per 1M tokens (−43%)</b>, corresponding to output throughput of <b>1,617 → 2,943 tokens/sec (+82%)</b>.</p>
     <details class="tech">
-      <summary>For the technically curious: the actual settings the agent chose</summary>
+      <summary>Settings the search selected (vs. baseline)</summary>
       <ul>
-        <li><b>Triton MoE kernel</b> (<code>moe_backend=triton</code>) — a faster mixture-of-experts math routine for this model on H200, replacing the slower default.</li>
-        <li><b>FP8 KV cache</b> (<code>kv_cache_dtype=fp8</code>) — a more compact format for the attention cache, freeing memory for bigger batches.</li>
-        <li><b>Larger batches</b> (<code>max_num_seqs=768</code>, <code>max_num_batched_tokens=36864</code>) — process many more requests together.</li>
-        <li><b>Speculative decoding</b> (EAGLE3, <code>num_speculative_tokens=2</code>) plus a streaming tweak (<code>stream_interval=10</code>).</li>
+        <li><b>Mixture-of-experts kernel:</b> <code>moe_backend=triton</code> (baseline used the Marlin kernel).</li>
+        <li><b>Key/value-cache format:</b> <code>kv_cache_dtype=fp8</code> (more compact than the baseline format).</li>
+        <li><b>Batch sizes:</b> <code>max_num_seqs=768</code>, <code>max_num_batched_tokens=36864</code> (baseline: 256 / 8192).</li>
+        <li><b>Speculative decoding:</b> EAGLE3, <code>num_speculative_tokens=2</code>; streaming interval <code>stream_interval=10</code>.</li>
       </ul>
     </details>
     <figure>
-      <img src="assets/cost_compare.png" alt="Cost per 1M output tokens: previous setup $1.83 vs auto-tuned config $1.05, a 43% reduction">
-      <figcaption><b>Cost to serve 1 million output tokens.</b> Same model (GPT-OSS-120B), same single GPU (H200). The auto-tuned configuration is 43% cheaper. <span style="color:var(--faint)">(Dollar figures are illustrative at typical cloud H200 rates; the −43% reduction holds regardless of the exact rate.)</span></figcaption>
+      <img src="assets/cost_compare.png" alt="Cost per 1M output tokens: baseline $1.83 vs auto-tuned config $1.05">
+      <figcaption><b>Cost per 1M output tokens.</b> Same model (GPT-OSS-120B) and GPU (1× H200) for both. Dollar figures are at the benchmark's cloud H200 rate; the −43% change is independent of the rate.</figcaption>
     </figure>
 
-    <h3>3.2 — Beats our previous setup everywhere; best-in-class at peak</h3>
-    <p>This chart maps the core trade-off in serving: <b>per-user speed</b> (how fast one user's reply streams — right is snappier) versus <b>total throughput</b> (how many users we serve per GPU — up is cheaper). Our auto-tuned config (green) sits <b>above our previous setup (gray) at every load level</b>. At the highest-throughput operating point — where serving cost is lowest — it <b>matches and slightly exceeds a leading commercial serving stack</b> (orange). There's still headroom versus that stack in the middle of the range, which is where we'd look to improve next.</p>
+    <h3>3.2 — Throughput across concurrency levels</h3>
+    <p>The chart plots <b>per-user output speed</b> (tokens/sec for a single user) against <b>total throughput</b> (tokens/sec across all users) at concurrency levels 1–256. The auto-tuned configuration produced higher throughput than the baseline at 8 of 9 measured levels; at concurrency 4 the baseline was higher (465 vs 520 tokens/sec). At concurrency 128 and 256 the auto-tuned configuration exceeded the commercial reference (2,335 vs 2,180 and 2,657 vs 2,300 tokens/sec); at intermediate per-user speeds the commercial reference produced higher throughput than both.</p>
     <figure>
-      <img src="assets/frontier_clean.png" alt="Per-user speed vs total throughput: auto-tuned config beats previous setup everywhere and reaches the commercial reference at peak throughput">
-      <figcaption><b>Per-user speed vs. total throughput.</b> Each point is a load level; up-and-to-the-right is better. Our auto-tuned config dominates the previous setup, and reaches best-in-class at the cheapest (highest-throughput) operating point.</figcaption>
+      <img src="assets/frontier_clean.png" alt="Total throughput vs per-user speed for baseline, auto-tuned config, and commercial reference, concurrency 1 to 256">
+      <figcaption><b>Total throughput vs. per-user output speed.</b> Each point is one concurrency level. Higher total throughput corresponds to lower cost per token.</figcaption>
     </figure>
 
-    <h3>3.3 — The win holds on real agent traffic</h3>
-    <p>Lab benchmarks can flatter a result, so we validated on <b>realistic traffic</b>: replaying actual multi-step agent conversations (τ-bench — airline booking, banking Q&A, and similar tool-using dialogues). Under <b>heavy load</b> — many users at once, exactly when GPU cost bites — throughput rose <b>+9 to +70%</b> (three of the four workloads gained ~65%). Under <b>light load</b> it was flat-to-slightly-lower — which doesn't affect cost: a lightly-loaded GPU is underused either way, so there's no throughput to win there.</p>
+    <h3>3.3 — Throughput on replayed τ-bench traffic</h3>
+    <p>τ-bench multi-turn agent conversations (airline and banking domains) were replayed against both configurations at matched request counts and matched concurrency. At <b>concurrency 64</b> (airline), throughput changed by <b>+9%, +63%, +69%, +70%</b> across the four source workloads. At <b>concurrency 4</b> (banking), throughput changed by <b>−18%, +3%, −12%</b> across three workloads (a fourth had no valid baseline and is omitted).</p>
     <figure>
-      <img src="assets/tau_throughput.png" alt="Throughput change on tau-bench agent traffic: +9 to +70% under heavy load, roughly flat under light load">
-      <figcaption><b>Throughput change vs. our previous setup, on replayed agent conversations.</b> Each bar is a different source model's traffic. Heavy load (left) is where serving cost is highest — and where the gains are largest.</figcaption>
+      <img src="assets/tau_throughput.png" alt="tau-bench replay throughput change vs baseline: +9 to +70% at concurrency 64, -18% to +3% at concurrency 4">
+      <figcaption><b>Throughput change vs. baseline on replayed τ-bench conversations.</b> Each bar is a different source workload. Left group: concurrency 64; right group: concurrency 4.</figcaption>
     </figure>
   </div>
 </section>
 
-<section id="tradeoff">
+<section id="latency">
   <div class="wrap">
-    <h2><span class="num-badge">4</span>The honest trade-off</h2>
-    <p>The cheapest configuration hits its throughput by processing many requests together, which slightly slows any single user's reply. That's the right call when the GPU is busy serving many users (the costly case), and it matters less when traffic is light.</p>
-    <p>For latency-sensitive deployments, the agent also found a <b>"deployable" variant</b> that delivers <b>+16% more throughput while staying within strict responsiveness limits</b>. Net: we now have a menu of configurations along the cost-vs-speed trade-off — all better than where we started.</p>
+    <h2><span class="num-badge">4</span>Latency</h2>
+    <p>The throughput-maximizing configuration increases per-request latency: on the synthetic benchmark its p99 time-to-first-token was ≈42 s at concurrency 256, because it processes a large batch of requests together.</p>
+    <p>A separate configuration was searched under an explicit latency constraint (p99 time-to-first-token ≤ 5,000 ms, p99 inter-token latency ≤ 25 ms) at concurrency 16. It produced <b>+16% throughput over the baseline</b> while meeting the constraint — measured p99 time-to-first-token 4,873 ms and p99 inter-token latency 20.6 ms.</p>
   </div>
 </section>
 
-<section id="bottomline">
+<section id="configs">
   <div class="wrap">
-    <h2><span class="num-badge">5</span>Bottom line &amp; what's next</h2>
-    <p>This is a <b>concrete, no-risk efficiency win</b>: up to 43% lower cost per token on the same model and hardware, validated on production-style traffic. Two ways to capture it:</p>
-    <div class="rec">
-      <div class="card"><div class="h">→ High-traffic &amp; batch serving</div><div class="b">Adopt the throughput-max config. Biggest savings exactly where our load (and cost) is highest. Drop-in: no model change.</div></div>
-      <div class="card"><div class="h">→ Latency-sensitive endpoints</div><div class="b">Use the deployable variant: +16% throughput while staying within strict responsiveness limits.</div></div>
-    </div>
-    <p>And the tuning agent is <b>reusable</b>: when we change models or GPUs, it re-tunes automatically — so this is a repeatable capability, not a one-off result. <b>Next step:</b> close the remaining mid-range gap versus the commercial reference, and run the agent against our next target model.</p>
+    <h2><span class="num-badge">5</span>Configurations and measured results</h2>
+    <table>
+      <thead><tr><th>Configuration</th><th>Key settings</th><th>Measured result</th></tr></thead>
+      <tbody>
+        <tr>
+          <td><span class="cfg">Baseline</span></td>
+          <td>Marlin MoE kernel; max_num_seqs 256; max_num_batched_tokens 8192</td>
+          <td class="num">$1.83 / 1M tokens<br>1,617 tokens/sec<br>(synthetic, conc. 256)</td>
+        </tr>
+        <tr>
+          <td><span class="cfg">Throughput-max</span></td>
+          <td>triton MoE; fp8 KV cache; max_num_seqs 768; max_num_batched_tokens 36864; num_speculative_tokens 2; stream_interval 10</td>
+          <td class="num">$1.05 / 1M tokens (−43%)<br>2,943 tokens/sec (+82%)<br>p99 TTFT ≈42 s (conc. 256)</td>
+        </tr>
+        <tr>
+          <td><span class="cfg">Latency-constrained</span></td>
+          <td>Marlin MoE; num_speculative_tokens 2; stream_interval 10; FLASH_ATTN attention</td>
+          <td class="num">+16% throughput vs. baseline<br>p99 TTFT 4,873 ms / TPOT 20.6 ms<br>(synthetic, conc. 16)</td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:.9rem;color:var(--muted)">All three configurations serve the same model on the same single H200; they differ only in launch settings. The τ-bench results in §3.3 used the throughput-max configuration.</p>
   </div>
 </section>
 
@@ -230,22 +241,27 @@
   <div class="wrap">
     <h2>Glossary</h2>
     <dl class="gloss">
-      <dt>vLLM</dt><dd>The open-source software engine that runs our model and answers user requests. Its launch settings are what we tuned.</dd>
-      <dt>Token</dt><dd>A chunk of text (roughly ¾ of a word). Models read and write in tokens; we translate GPU time into cost per token.</dd>
-      <dt>Throughput</dt><dd>Total output tokens produced per second across all users. Higher = more work per GPU = lower cost.</dd>
-      <dt>Per-user speed</dt><dd>How fast one user's reply streams out. Trade-off: serving more users at once can slow each individual reply.</dd>
-      <dt>Concurrency / load</dt><dd>How many users the system handles at the same time. "Heavy load" = many at once.</dd>
-      <dt>Cost per token</dt><dd>Our key metric: GPU cost divided by tokens produced. Lower is the whole goal.</dd>
-      <dt>Server config</dt><dd>The launch settings (batch sizes, memory format, math routines, …) the agent tunes. The model is never changed.</dd>
-      <dt>OpenEvolve</dt><dd>The evolutionary AI agent we used to search the settings automatically.</dd>
-      <dt>τ-bench</dt><dd>A public benchmark of realistic multi-step agent conversations (booking, support, Q&A) used to validate on production-style traffic.</dd>
+      <dt>vLLM</dt><dd>Open-source engine that runs the model and serves requests; its launch configuration was tuned.</dd>
+      <dt>Token</dt><dd>A unit of text (≈¾ of a word). Models read and write in tokens; cost is reported per token.</dd>
+      <dt>Throughput</dt><dd>Output tokens produced per second across all users. Higher throughput corresponds to lower cost per token.</dd>
+      <dt>Per-user speed</dt><dd>Output tokens per second for a single user.</dd>
+      <dt>Concurrency</dt><dd>Number of requests handled at the same time (reported as 1–256 here).</dd>
+      <dt>Time-to-first-token (TTFT)</dt><dd>Delay before a user receives the first output token. "p99" = the 99th-percentile (near-worst-case) value.</dd>
+      <dt>Inter-token latency (TPOT)</dt><dd>Time between successive output tokens for one user.</dd>
+      <dt>Launch configuration</dt><dd>Startup settings (batch sizes, cache format, kernels, speculative-decoding depth). The model is not part of it.</dd>
+      <dt>MoE kernel</dt><dd>The compute routine for the model's mixture-of-experts layers (e.g., Marlin or Triton).</dd>
+      <dt>KV cache</dt><dd>Memory holding intermediate state during generation; its numeric format (e.g., fp8) trades precision for capacity.</dd>
+      <dt>Speculative decoding</dt><dd>Generating several draft tokens per step and verifying them, to raise throughput.</dd>
+      <dt>OpenEvolve</dt><dd>The evolutionary search agent used to tune the configuration.</dd>
+      <dt>Fireworks</dt><dd>A commercial LLM-serving provider, used here as an external throughput reference.</dd>
+      <dt>τ-bench</dt><dd>A public benchmark of multi-turn agent conversations (airline, banking, etc.), replayed here as a realistic traffic pattern.</dd>
     </dl>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <p><b>Methodology in one line:</b> all numbers measured on a single NVIDIA H200 serving GPT-OSS-120B via vLLM; throughput compared on matched workloads; cost = GPU-time ÷ output tokens. The agent optimized only launch configuration, never the model.</p>
+    <p><b>Methodology.</b> Model: GPT-OSS-120B (MXFP4) on 1× NVIDIA H200, vLLM v0.22. Synthetic benchmark: 8k-token input / 1k-token output, concurrency 1–256. τ-bench replay: recorded multi-turn agent conversations (airline, banking) replayed with synthetic tokens at matched request counts and concurrency to the baseline; throughput computed from wall-clock time over forced-length outputs (server-side token counters were not used, as the streaming and speculative-decoding settings affect them). Cost = GPU time ÷ output tokens. The search (OpenEvolve) optimized only the vLLM launch configuration; model weights were unchanged.</p>
     <p>Internal engineering report · GPT-OSS-120B inference efficiency · June 2026.</p>
   </div>
 </footer>
