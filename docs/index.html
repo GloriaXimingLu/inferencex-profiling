@@ -78,9 +78,13 @@
   th,td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
   th{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;color:var(--faint)}
   td .cfg{font-weight:700}
-  td.num{font-variant-numeric:tabular-nums;white-space:nowrap}
+  td.num{font-variant-numeric:tabular-nums}
 
-  dl.gloss{display:grid;grid-template-columns:200px 1fr;gap:0 22px}
+  details.gloss-wrap > summary{font-size:1.55rem;font-weight:700;letter-spacing:-.01em;cursor:pointer;list-style:none;margin:0 0 .35em;color:var(--ink)}
+  details.gloss-wrap > summary::-webkit-details-marker{display:none}
+  details.gloss-wrap > summary::before{content:"▸ ";color:var(--accent);font-size:1.05rem}
+  details.gloss-wrap[open] > summary::before{content:"▾ "}
+  dl.gloss{display:grid;grid-template-columns:210px 1fr;gap:0 22px}
   dl.gloss dt{font-weight:700;padding:11px 0;border-top:1px solid var(--line)}
   dl.gloss dd{margin:0;padding:11px 0;border-top:1px solid var(--line);color:var(--muted)}
   @media(max-width:600px){dl.gloss{grid-template-columns:1fr}dl.gloss dd{border-top:none;padding-top:0}}
@@ -121,11 +125,11 @@
     <h2>Summary of findings</h2>
     <div class="tldr">
       <ul>
-        <li>On the synthetic benchmark (8k-token input, 1k-token output), the best configuration found reduced cost per output token from <b>$1.83 to $1.05 per 1M tokens (−43%)</b>; output throughput rose from <b>1,617 to 2,943 tokens/sec (+82%)</b>.</li>
-        <li>Across concurrency levels 1–256, the auto-tuned configuration produced higher throughput than the baseline at <b>8 of 9 levels</b> (exception: concurrency 4). At concurrency 128 and 256 it exceeded a commercial reference (Fireworks); at intermediate concurrency the commercial reference was higher.</li>
+        <li>On the synthetic benchmark (8k-token input, 1k-token output), the configuration found by the optimization reduced cost per output token from <b>$1.83 to $1.05 per 1M tokens (−43%)</b>, at a GPU rate of $3.50 per H200-hour.</li>
+        <li>In a throughput sweep across concurrency 1–256, that configuration's output throughput exceeded the baseline at <b>8 of 9 levels</b> (exception: concurrency 4). At concurrency 256 it produced <b>2,657 vs. 1,722 tokens/sec (+54%)</b>; at concurrency 128 and 256 it also exceeded a commercial reference (Fireworks), and at intermediate concurrency the reference was higher.</li>
         <li>On replayed τ-bench agent traffic at concurrency 64, throughput changed by <b>+9%, +63%, +69%, +70%</b> across four source workloads. At concurrency 4 it changed by <b>−18%, +3%, −12%</b> across three workloads.</li>
-        <li>The throughput-maximizing configuration's p99 time-to-first-token was <b>≈42 s</b> at concurrency 256. A separate latency-constrained configuration produced <b>+16% throughput</b> over the baseline while meeting a p99 time-to-first-token limit of 5,000 ms (measured 4,873 ms).</li>
-        <li>The search modified <b>only the vLLM launch configuration</b>; model weights were unchanged.</li>
+        <li>At concurrency 256, p99 time-to-first-token was <b>113 s</b> (baseline) and <b>39 s</b> (throughput-max) — high for both because requests queue at maximum load. A latency-constrained configuration at concurrency 16 produced <b>+16% throughput</b> within p99 limits of 5,000 ms / 25 ms (measured 4,873 ms / 20.6 ms).</li>
+        <li>The optimization modified <b>only the vLLM launch configuration</b>; model weights were unchanged.</li>
       </ul>
     </div>
   </div>
@@ -138,7 +142,7 @@
       <li><b>Model:</b> GPT-OSS-120B (120B parameters, MXFP4 weights).</li>
       <li><b>Hardware:</b> one NVIDIA H200 GPU.</li>
       <li><b>Serving engine:</b> vLLM v0.22 — the open-source engine that runs the model and answers requests. Its launch configuration (the settings used at startup) is what was tuned.</li>
-      <li><b>Cost metric:</b> GPU time per output token, reported as US$ per 1M output tokens at the benchmark's cloud H200 rate. (The percentage change is independent of the rate.)</li>
+      <li><b>Cost metric:</b> cost per 1M output tokens = (wall-clock GPU-hours × GPU hourly rate) ÷ output tokens. <b>GPU rate: $3.50 per H200-hour</b> (1 GPU, so GPU-hours = wall-clock hours). Because each request processes an 8k-token input before generating output, this is the full serving cost — including input-processing time — divided across the output tokens; it is therefore not simply the inverse of output throughput. The percentage change between configurations is independent of the rate.</li>
       <li><b>Objective:</b> minimize cost per output token, subject to latency limits.</li>
     </ul>
     <p>The launch configuration exposes on the order of 15 settings — batch sizes, key/value-cache numeric format, attention and mixture-of-experts compute kernels, and speculative-decoding depth — that affect throughput and latency. These were the search space.</p>
@@ -171,7 +175,7 @@
     <h2><span class="num-badge">3</span>Results</h2>
 
     <h3>3.1 — Cost per token (synthetic benchmark)</h3>
-    <p>On the synthetic benchmark (8k-token input, 1k-token output), the configuration found reduced cost per output token from <b>$1.83 to $1.05 per 1M tokens (−43%)</b>, corresponding to output throughput of <b>1,617 → 2,943 tokens/sec (+82%)</b>.</p>
+    <p>On the synthetic benchmark (8k-token input, 1k-token output), the configuration found reduced cost per output token from <b>$1.83 to $1.05 per 1M tokens (−43%)</b>, at a GPU rate of $3.50 per H200-hour. This cost includes the time to process each request's 8k-token input; the corresponding output-throughput change is reported separately in §3.2.</p>
     <details class="tech">
       <summary>Settings the search selected (vs. baseline)</summary>
       <ul>
@@ -183,11 +187,11 @@
     </details>
     <figure>
       <img src="assets/cost_compare.png" alt="Cost per 1M output tokens: baseline $1.83 vs auto-tuned config $1.05">
-      <figcaption><b>Cost per 1M output tokens.</b> Same model (GPT-OSS-120B) and GPU (1× H200) for both. Dollar figures are at the benchmark's cloud H200 rate; the −43% change is independent of the rate.</figcaption>
+      <figcaption><b>Cost per 1M output tokens.</b> Same model (GPT-OSS-120B) and GPU (1× H200) for both. Dollars use a GPU rate of <b>$3.50 per H200-hour</b>, computed as (wall-clock GPU-hours × rate) ÷ output tokens (the full serving cost, including each request's 8k-token input). The −43% change is independent of the rate.</figcaption>
     </figure>
 
     <h3>3.2 — Throughput across concurrency levels</h3>
-    <p>The chart plots <b>per-user output speed</b> (tokens/sec for a single user) against <b>total throughput</b> (tokens/sec across all users) at concurrency levels 1–256. The auto-tuned configuration produced higher throughput than the baseline at 8 of 9 measured levels; at concurrency 4 the baseline was higher (465 vs 520 tokens/sec). At concurrency 128 and 256 the auto-tuned configuration exceeded the commercial reference (2,335 vs 2,180 and 2,657 vs 2,300 tokens/sec); at intermediate per-user speeds the commercial reference produced higher throughput than both.</p>
+    <p>The chart plots <b>per-user output speed</b> (tokens/sec for a single user) against <b>total throughput</b> (tokens/sec across all users) at concurrency levels 1–256. The auto-tuned configuration produced higher throughput than the baseline at 8 of 9 measured levels; at concurrency 4 the baseline was higher (465 vs. 520 tokens/sec). At concurrency 256 the auto-tuned configuration produced <b>2,657 vs. the baseline's 1,722 tokens/sec (+54%)</b>. At concurrency 128 and 256 it also exceeded the commercial reference (2,335 vs. 2,180 and 2,657 vs. 2,300 tokens/sec); at intermediate per-user speeds the commercial reference produced higher throughput than both.</p>
     <figure>
       <img src="assets/frontier_clean.png" alt="Total throughput vs per-user speed for baseline, auto-tuned config, and commercial reference, concurrency 1 to 256">
       <figcaption><b>Total throughput vs. per-user output speed.</b> Each point is one concurrency level. Higher total throughput corresponds to lower cost per token.</figcaption>
@@ -205,8 +209,8 @@
 <section id="latency">
   <div class="wrap">
     <h2><span class="num-badge">4</span>Latency</h2>
-    <p>The throughput-maximizing configuration increases per-request latency: on the synthetic benchmark its p99 time-to-first-token was ≈42 s at concurrency 256, because it processes a large batch of requests together.</p>
-    <p>A separate configuration was searched under an explicit latency constraint (p99 time-to-first-token ≤ 5,000 ms, p99 inter-token latency ≤ 25 ms) at concurrency 16. It produced <b>+16% throughput over the baseline</b> while meeting the constraint — measured p99 time-to-first-token 4,873 ms and p99 inter-token latency 20.6 ms.</p>
+    <p>Throughput and per-request latency both depend on the concurrency the server runs at. At the maximum measured concurrency (256), where throughput is highest, p99 time-to-first-token is high for both configurations because many requests are queued: <b>113 s for the baseline and 39 s for the throughput-max configuration</b>. p99 inter-token latency (the time between successive output tokens, also called TPOT) was <b>144 ms for the baseline and 157 ms for the throughput-max configuration</b>. The high time-to-first-token reflects the request-queue depth at this concurrency, not a property of either configuration; at lower concurrency it is much smaller.</p>
+    <p>A separate configuration was searched under explicit latency limits (p99 time-to-first-token ≤ 5,000 ms, p99 inter-token latency ≤ 25 ms) at concurrency 16. It produced <b>+16% throughput over the baseline</b> while meeting the limits — measured p99 time-to-first-token 4,873 ms and p99 inter-token latency 20.6 ms.</p>
   </div>
 </section>
 
@@ -214,40 +218,39 @@
   <div class="wrap">
     <h2><span class="num-badge">5</span>Configurations and measured results</h2>
     <table>
-      <thead><tr><th>Configuration</th><th>Key settings</th><th>Measured result</th></tr></thead>
+      <thead><tr><th>Configuration</th><th>Key settings</th><th>Measured results</th></tr></thead>
       <tbody>
         <tr>
           <td><span class="cfg">Baseline</span></td>
           <td>Marlin MoE kernel; max_num_seqs 256; max_num_batched_tokens 8192</td>
-          <td class="num">$1.83 / 1M tokens<br>1,617 tokens/sec<br>(synthetic, conc. 256)</td>
+          <td class="num">$1.83 / 1M tokens<br>1,722 tokens/sec<br>p99 TTFT 113 s (conc. 256)</td>
         </tr>
         <tr>
           <td><span class="cfg">Throughput-max</span></td>
           <td>triton MoE; fp8 KV cache; max_num_seqs 768; max_num_batched_tokens 36864; num_speculative_tokens 2; stream_interval 10</td>
-          <td class="num">$1.05 / 1M tokens (−43%)<br>2,943 tokens/sec (+82%)<br>p99 TTFT ≈42 s (conc. 256)</td>
+          <td class="num">$1.05 / 1M tokens (−43%)<br>2,657 tokens/sec (+54%)<br>p99 TTFT 39 s (conc. 256)</td>
         </tr>
         <tr>
           <td><span class="cfg">Latency-constrained</span></td>
           <td>Marlin MoE; num_speculative_tokens 2; stream_interval 10; FLASH_ATTN attention</td>
-          <td class="num">+16% throughput vs. baseline<br>p99 TTFT 4,873 ms / TPOT 20.6 ms<br>(synthetic, conc. 16)</td>
+          <td class="num">+16% throughput vs. baseline<br>p99 TTFT 4,873 ms / TPOT 20.6 ms<br>(conc. 16)</td>
         </tr>
       </tbody>
     </table>
-    <p style="font-size:.9rem;color:var(--muted)">All three configurations serve the same model on the same single H200; they differ only in launch settings. The τ-bench results in §3.3 used the throughput-max configuration.</p>
+    <p style="font-size:.9rem;color:var(--muted)">All three configurations serve the same model on the same single H200; they differ only in launch settings. Cost is the optimization objective (cost per output token, including input-prefill time, at $3.50/H200-hour); throughput and latency are from the configuration sweep. The τ-bench results in §3.3 used the throughput-max configuration.</p>
   </div>
 </section>
 
 <section id="glossary">
   <div class="wrap">
-    <h2>Glossary</h2>
-    <dl class="gloss">
-      <dt>vLLM</dt><dd>Open-source engine that runs the model and serves requests; its launch configuration was tuned.</dd>
-      <dt>Token</dt><dd>A unit of text (≈¾ of a word). Models read and write in tokens; cost is reported per token.</dd>
+    <details class="gloss-wrap">
+      <summary>Glossary</summary>
+      <dl class="gloss">
       <dt>Throughput</dt><dd>Output tokens produced per second across all users. Higher throughput corresponds to lower cost per token.</dd>
       <dt>Per-user speed</dt><dd>Output tokens per second for a single user.</dd>
       <dt>Concurrency</dt><dd>Number of requests handled at the same time (reported as 1–256 here).</dd>
       <dt>Time-to-first-token (TTFT)</dt><dd>Delay before a user receives the first output token. "p99" = the 99th-percentile (near-worst-case) value.</dd>
-      <dt>Inter-token latency (TPOT)</dt><dd>Time between successive output tokens for one user.</dd>
+      <dt>Inter-token latency (TPOT)</dt><dd>Time between successive output tokens for one user. Also called time-per-output-token (TPOT); the two terms refer to the same metric here.</dd>
       <dt>Launch configuration</dt><dd>Startup settings (batch sizes, cache format, kernels, speculative-decoding depth). The model is not part of it.</dd>
       <dt>MoE kernel</dt><dd>The compute routine for the model's mixture-of-experts layers (e.g., Marlin or Triton).</dd>
       <dt>KV cache</dt><dd>Memory holding intermediate state during generation; its numeric format (e.g., fp8) trades precision for capacity.</dd>
@@ -255,13 +258,14 @@
       <dt>OpenEvolve</dt><dd>The evolutionary search agent used to tune the configuration.</dd>
       <dt>Fireworks</dt><dd>A commercial LLM-serving provider, used here as an external throughput reference.</dd>
       <dt>τ-bench</dt><dd>A public benchmark of multi-turn agent conversations (airline, banking, etc.), replayed here as a realistic traffic pattern.</dd>
-    </dl>
+      </dl>
+    </details>
   </div>
 </section>
 
 <footer>
   <div class="wrap">
-    <p><b>Methodology.</b> Model: GPT-OSS-120B (MXFP4) on 1× NVIDIA H200, vLLM v0.22. Synthetic benchmark: 8k-token input / 1k-token output, concurrency 1–256. τ-bench replay: recorded multi-turn agent conversations (airline, banking) replayed with synthetic tokens at matched request counts and concurrency to the baseline; throughput computed from wall-clock time over forced-length outputs (server-side token counters were not used, as the streaming and speculative-decoding settings affect them). Cost = GPU time ÷ output tokens. The search (OpenEvolve) optimized only the vLLM launch configuration; model weights were unchanged.</p>
+    <p><b>Methodology.</b> Model: GPT-OSS-120B (MXFP4) on 1× NVIDIA H200, vLLM v0.22. Synthetic benchmark: 8k-token input / 1k-token output, concurrency 1–256. τ-bench replay: recorded multi-turn agent conversations (airline, banking) replayed with synthetic tokens at matched request counts and concurrency to the baseline; throughput computed from wall-clock time over forced-length outputs (server-side token counters were not used, as the streaming and speculative-decoding settings affect them). Cost per 1M output tokens = (wall_s ÷ 3600 × num_GPUs × $3.50/GPU-hr) ÷ output tokens × 1,000,000, on 1 GPU; it includes input-prefill time. The search (OpenEvolve) optimized only the vLLM launch configuration; model weights were unchanged.</p>
     <p>Internal engineering report · GPT-OSS-120B inference efficiency · June 2026.</p>
   </div>
 </footer>
